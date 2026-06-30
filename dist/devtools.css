@@ -247,9 +247,6 @@
   .mx-1 {
     margin-inline: var(--spacing);
   }
-  .mt-1 {
-    margin-top: var(--spacing);
-  }
   .mt-1\.5 {
     margin-top: calc(var(--spacing) * 1.5);
   }

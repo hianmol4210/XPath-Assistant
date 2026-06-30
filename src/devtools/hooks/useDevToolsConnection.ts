@@ -285,12 +285,17 @@ export function useDevToolsConnection(): DevToolsConnection {
     const action = actionRec.primary;
     const stepNumber = stepsRef.current.length + 1;
 
-    // Evaluate match count on the actual page
-    const xpath = selector.xpath.replace(/'/g, "\\'");
+    // Format as ZeuZ step first (to get the locator)
+    const zeuzStep = formatAsZeuzStep(element, action, stepNumber, {
+      defaultWait: settingsRef.current.defaultWait,
+    });
+
+    // Evaluate match count using the LOCATOR xpath (the one shown in the UI)
+    const locatorXpath = zeuzStep.locator.replace(/'/g, "\\'");
     const countScript = `
       (function() {
         try {
-          var result = document.evaluate('${xpath}', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          var result = document.evaluate('${locatorXpath}', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
           return result.snapshotLength;
         } catch(e) { return -1; }
       })();
@@ -298,11 +303,6 @@ export function useDevToolsConnection(): DevToolsConnection {
     const countResult = await evalOnPage(countScript);
     const matchCount = countResult ? parseInt(String(countResult), 10) : -1;
     selector.matchCount = isNaN(matchCount) ? -1 : matchCount;
-
-    // Format as ZeuZ step (without xpath — ZeuZ uses class/text/placeholder to locate)
-    const zeuzStep = formatAsZeuzStep(element, action, stepNumber, {
-      defaultWait: settingsRef.current.defaultWait,
-    });
 
     addStep(element, action, selector, zeuzStep);
     setSelectedElement(element);
