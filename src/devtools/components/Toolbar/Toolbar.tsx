@@ -154,33 +154,44 @@ export const Toolbar: React.FC = () => {
 
   const handleFreeze = useCallback(() => {
     if (isFrozen) {
-      // Unfreeze: resume execution by evaluating a no-op (debugger resumes when you click play in Sources)
-      // Actually we can't programmatically resume from debugger; — but we can use a different approach
-      // Use setTimeout trick: freeze by stopping all timers, unfreeze by letting them run
+      // Unfreeze: remove the freeze styles
       try {
         chrome.devtools.inspectedWindow.eval(`
-          if (window.__qaFrozenState) {
-            // Restore requestAnimationFrame and timers
-            window.requestAnimationFrame = window.__qaFrozenState.raf;
-            window.setTimeout = window.__qaFrozenState.setTimeout;
-            window.setInterval = window.__qaFrozenState.setInterval;
-            delete window.__qaFrozenState;
-          }
+          (function() {
+            var style = document.getElementById('__qa-freeze-style__');
+            if (style) style.remove();
+            document.documentElement.classList.remove('__qa-frozen__');
+          })();
         `);
       } catch (e) {}
       setIsFrozen(false);
     } else {
-      // Freeze: stop all animations and timers
+      // Freeze: inject CSS that pauses all animations/transitions and disables interaction
       try {
         chrome.devtools.inspectedWindow.eval(`
-          window.__qaFrozenState = {
-            raf: window.requestAnimationFrame,
-            setTimeout: window.setTimeout,
-            setInterval: window.setInterval
-          };
-          window.requestAnimationFrame = function() { return 0; };
-          window.setTimeout = function() { return 0; };
-          window.setInterval = function() { return 0; };
+          (function() {
+            if (document.getElementById('__qa-freeze-style__')) return;
+            var style = document.createElement('style');
+            style.id = '__qa-freeze-style__';
+            style.textContent = \`
+              .__qa-frozen__,
+              .__qa-frozen__ * {
+                animation-play-state: paused !important;
+                transition: none !important;
+              }
+              .__qa-frozen__::before {
+                content: '';
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                z-index: 2147483640;
+                pointer-events: none;
+                border: 4px solid #ef4444;
+                box-sizing: border-box;
+              }
+            \`;
+            document.head.appendChild(style);
+            document.documentElement.classList.add('__qa-frozen__');
+          })();
         `);
       } catch (e) {}
       setIsFrozen(true);
