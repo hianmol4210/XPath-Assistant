@@ -90,10 +90,18 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
   const removeStep = useStore((s) => s.removeStep);
   const updateStep = useStore((s) => s.updateStep);
   const setHighlightXpath = useStore((s) => s.setHighlightXpath);
+  const checkedStepIds = useStore((s) => s.checkedStepIds);
+  const toggleCheckedStep = useStore((s) => s.toggleCheckedStep);
   const [copiedZeuz, setCopiedZeuz] = useState(false);
   const [copiedXpath, setCopiedXpath] = useState(false);
 
   const isSelected = selectedStepId === step.id;
+  const isChecked = checkedStepIds.has(step.id);
+
+  const handleCheckbox = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    toggleCheckedStep(step.id);
+  };
 
   // Copy ZeuZ parameters only
   const handleCopyZeuz = (e: React.MouseEvent) => {
@@ -147,6 +155,15 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
     >
       {/* Step header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-surface/50">
+        {/* Checkbox */}
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={handleCheckbox}
+          onClick={(e) => e.stopPropagation()}
+          className="w-4 h-4 rounded border-surface-light accent-primary-500 flex-shrink-0"
+        />
+
         {/* Step number badge */}
         <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-primary-500/20 text-primary-400 text-xs font-bold">
           {step.stepNumber}

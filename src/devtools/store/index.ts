@@ -163,24 +163,43 @@ export interface UISlice {
   searchQuery: string;
   panelSizes: PanelSizes;
   highlightXpath: string | null;
+  checkedStepIds: Set<string>;
   selectStep: (stepId: string | null) => void;
   setSelectedElement: (element: CapturedElement | null) => void;
   setSearchQuery: (query: string) => void;
   setPanelSizes: (sizes: PanelSizes) => void;
   setHighlightXpath: (xpath: string | null) => void;
+  toggleCheckedStep: (stepId: string) => void;
+  checkAllSteps: () => void;
+  uncheckAllSteps: () => void;
 }
 
-const createUISlice: StateCreator<AppState, [], [], UISlice> = (set) => ({
+const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get) => ({
   selectedStepId: null,
   selectedElement: null,
   searchQuery: '',
   panelSizes: { left: 20, middle: 50, right: 30 },
   highlightXpath: null,
+  checkedStepIds: new Set(),
   selectStep: (stepId) => set({ selectedStepId: stepId }),
   setSelectedElement: (element) => set({ selectedElement: element }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setPanelSizes: (sizes) => set({ panelSizes: sizes }),
   setHighlightXpath: (xpath) => set({ highlightXpath: xpath }),
+  toggleCheckedStep: (stepId) => set((state) => {
+    const newSet = new Set(state.checkedStepIds);
+    if (newSet.has(stepId)) {
+      newSet.delete(stepId);
+    } else {
+      newSet.add(stepId);
+    }
+    return { checkedStepIds: newSet };
+  }),
+  checkAllSteps: () => set((state) => {
+    const allIds = new Set(state.steps.map(s => s.id));
+    return { checkedStepIds: allIds };
+  }),
+  uncheckAllSteps: () => set({ checkedStepIds: new Set() }),
 });
 
 // ─── Combined AppState ──────────────────────────────────────────────────────────
