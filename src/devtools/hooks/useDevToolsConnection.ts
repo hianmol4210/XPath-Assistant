@@ -363,12 +363,16 @@ export function useDevToolsConnection(): DevToolsConnection {
       stopCapture();
     } else if (captureMode === 'paused' && prev === 'capturing') {
       // Pause: remove picker listeners so clicks work normally on the page
-      stopPolling();
+      // Keep polling alive (just for heartbeat) but don't process captures
       evalOnPage(PAUSE_PICKER_SCRIPT);
     } else if (captureMode === 'capturing' && prev === 'paused') {
-      // Resume: re-add picker listeners
-      evalOnPage(RESUME_PICKER_SCRIPT);
-      startPolling();
+      // Resume: try to resume, if picker was cleaned up, re-inject it
+      evalOnPage(RESUME_PICKER_SCRIPT).then((result) => {
+        if (result === '__QA_PICKER_NOT_ACTIVE__') {
+          // Picker was cleaned up, re-inject
+          evalOnPage(PICKER_SCRIPT);
+        }
+      });
     }
   }, [captureMode, startCapture, stopCapture, startPolling, stopPolling]);
 
