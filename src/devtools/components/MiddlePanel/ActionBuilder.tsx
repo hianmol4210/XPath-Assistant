@@ -47,20 +47,26 @@ export const ActionBuilder: React.FC = () => {
 
   const handleCopyAll = () => {
     if (steps.length === 0) return;
-    const text = copyAllSteps(steps.map(s => s.zeuzStep));
-    if (copyToClipboard(text)) {
-      setCopiedAll(true);
-      setTimeout(() => setCopiedAll(false), 1500);
+    if (copiedAll) {
+      setCopiedAll(false);
+    } else {
+      const text = copyAllSteps(steps.map(s => s.zeuzStep));
+      if (copyToClipboard(text)) {
+        setCopiedAll(true);
+      }
     }
   };
 
   const handleCopySelected = () => {
     const selectedSteps = steps.filter(s => checkedStepIds.has(s.id));
     if (selectedSteps.length === 0) return;
-    const text = copyAllSteps(selectedSteps.map(s => s.zeuzStep));
-    if (copyToClipboard(text)) {
-      setCopiedSelected(true);
-      setTimeout(() => setCopiedSelected(false), 1500);
+    if (copiedSelected) {
+      setCopiedSelected(false);
+    } else {
+      const text = copyAllSteps(selectedSteps.map(s => s.zeuzStep));
+      if (copyToClipboard(text)) {
+        setCopiedSelected(true);
+      }
     }
   };
 

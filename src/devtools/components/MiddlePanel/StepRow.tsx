@@ -65,9 +65,12 @@ const CopyValueButton: React.FC<{ value: string }> = ({ value }) => {
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (copyToClipboard(value)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1000);
+    if (copied) {
+      setCopied(false);
+    } else {
+      if (copyToClipboard(value)) {
+        setCopied(true);
+      }
     }
   };
 
@@ -103,23 +106,31 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
     toggleCheckedStep(step.id);
   };
 
-  // Copy ZeuZ parameters only
+  // Copy ZeuZ parameters only — stays green until clicked again
   const handleCopyZeuz = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const text = copyZeuzStep(step.zeuzStep);
-    if (copyToClipboard(text)) {
-      setCopiedZeuz(true);
-      setTimeout(() => setCopiedZeuz(false), 1500);
+    if (copiedZeuz) {
+      // Already copied — reset to normal
+      setCopiedZeuz(false);
+    } else {
+      const text = copyZeuzStep(step.zeuzStep);
+      if (copyToClipboard(text)) {
+        setCopiedZeuz(true);
+      }
     }
   };
 
-  // Copy XPath as variable assignment: xpath_name = //*[...]
+  // Copy XPath as variable assignment — stays green until clicked again
   const handleCopyXpath = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const text = `${step.zeuzStep.locatorName} = ${step.zeuzStep.locator}`;
-    if (copyToClipboard(text)) {
-      setCopiedXpath(true);
-      setTimeout(() => setCopiedXpath(false), 1500);
+    if (copiedXpath) {
+      // Already copied — reset to normal
+      setCopiedXpath(false);
+    } else {
+      const text = `${step.zeuzStep.locatorName} = ${step.zeuzStep.locator}`;
+      if (copyToClipboard(text)) {
+        setCopiedXpath(true);
+      }
     }
   };
 
