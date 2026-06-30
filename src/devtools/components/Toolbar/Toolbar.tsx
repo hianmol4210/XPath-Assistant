@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useStore } from '../../store';
 
 // ─── Inline SVG Icons ───────────────────────────────────────────────────────────
@@ -45,6 +45,12 @@ const SettingsIcon: React.FC = () => (
 const ExportIcon: React.FC = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <path d="M8 2v8M5 7l3 3 3-3M3 12h10v2H3z" />
+  </svg>
+);
+
+const FreezeIcon: React.FC = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M8 1v14M1 8h14M4 4l8 8M12 4l-8 8" />
   </svg>
 );
 
@@ -144,6 +150,43 @@ export const Toolbar: React.FC = () => {
     clearSteps();
   }, [clearSteps]);
 
+  const [isFrozen, setIsFrozen] = useState(false);
+
+  const handleFreeze = useCallback(() => {
+    if (isFrozen) {
+      // Unfreeze: resume execution by evaluating a no-op (debugger resumes when you click play in Sources)
+      // Actually we can't programmatically resume from debugger; — but we can use a different approach
+      // Use setTimeout trick: freeze by stopping all timers, unfreeze by letting them run
+      try {
+        chrome.devtools.inspectedWindow.eval(`
+          if (window.__qaFrozenState) {
+            // Restore requestAnimationFrame and timers
+            window.requestAnimationFrame = window.__qaFrozenState.raf;
+            window.setTimeout = window.__qaFrozenState.setTimeout;
+            window.setInterval = window.__qaFrozenState.setInterval;
+            delete window.__qaFrozenState;
+          }
+        `);
+      } catch (e) {}
+      setIsFrozen(false);
+    } else {
+      // Freeze: stop all animations and timers
+      try {
+        chrome.devtools.inspectedWindow.eval(`
+          window.__qaFrozenState = {
+            raf: window.requestAnimationFrame,
+            setTimeout: window.setTimeout,
+            setInterval: window.setInterval
+          };
+          window.requestAnimationFrame = function() { return 0; };
+          window.setTimeout = function() { return 0; };
+          window.setInterval = function() { return 0; };
+        `);
+      } catch (e) {}
+      setIsFrozen(true);
+    }
+  }, [isFrozen]);
+
   const handleExport = useCallback(() => {
     // Export functionality will be implemented later (Task 23)
   }, []);
@@ -217,6 +260,13 @@ export const Toolbar: React.FC = () => {
           label="Clear"
           onClick={handleClear}
           disabled={steps.length === 0}
+        />
+        <ToolbarButton
+          icon={<FreezeIcon />}
+          label={isFrozen ? 'Unfreeze Page' : 'Freeze Page'}
+          onClick={handleFreeze}
+          active={isFrozen}
+          variant={isFrozen ? 'danger' : 'default'}
         />
       </div>
 
