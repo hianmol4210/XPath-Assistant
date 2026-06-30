@@ -111,12 +111,18 @@ const PICKER_SCRIPT = `
     }, 300);
 
     // Store the data globally so the DevTools eval can retrieve it
-    window.__qaAutomationLastCapture = data;
+    try {
+      window.__qaAutomationLastCapture = JSON.parse(JSON.stringify(data));
+    } catch(err) {
+      window.__qaAutomationLastCapture = data;
+    }
     return false;
   }
 
   document.addEventListener('mousemove', onMove, true);
   document.addEventListener('mousedown', onClick, true);
+
+  console.log('[QA Automation Picker] Started - mousedown listener active');
 
   window.__qaAutomationCleanup = function() {
     document.removeEventListener('mousemove', onMove, true);
@@ -144,9 +150,14 @@ const STOP_PICKER_SCRIPT = `
 const GET_CAPTURE_SCRIPT = `
 (function() {
   if (window.__qaAutomationLastCapture) {
-    var data = JSON.stringify(window.__qaAutomationLastCapture);
-    window.__qaAutomationLastCapture = null;
-    return data;
+    try {
+      var data = JSON.stringify(window.__qaAutomationLastCapture);
+      window.__qaAutomationLastCapture = null;
+      return data;
+    } catch(e) {
+      window.__qaAutomationLastCapture = null;
+      return null;
+    }
   }
   return null;
 })();
@@ -225,15 +236,15 @@ export function useDevToolsConnection(): DevToolsConnection {
 
     pollingRef.current = setInterval(async () => {
       const result = await evalOnPage(GET_CAPTURE_SCRIPT);
-      if (result && result !== 'null') {
+      if (result && result !== 'null' && result !== 'undefined') {
         try {
           const element = JSON.parse(result) as CapturedElement;
           processElement(element);
         } catch (e) {
-          console.warn('[useCapture] Failed to parse capture:', e);
+          console.warn('[useCapture] Failed to parse capture data:', result?.substring(0, 100), e);
         }
       }
-    }, 200); // Check every 200ms
+    }, 300); // Check every 300ms
   }, [processElement]);
 
   const stopPolling = useCallback(() => {
