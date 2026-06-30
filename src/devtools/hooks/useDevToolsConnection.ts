@@ -37,23 +37,27 @@ const PICKER_SCRIPT = `
   document.documentElement.appendChild(overlay);
 
   function onMove(e) {
+    // Hide overlay to detect element underneath
+    overlay.style.display = 'none';
     var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el === overlay) return;
+    overlay.style.display = 'block';
+    if (!el) { overlay.style.display = 'none'; return; }
     var rect = el.getBoundingClientRect();
     overlay.style.top = rect.top + 'px';
     overlay.style.left = rect.left + 'px';
     overlay.style.width = rect.width + 'px';
     overlay.style.height = rect.height + 'px';
-    overlay.style.display = 'block';
   }
 
   function onClick(e) {
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-    // Use elementFromPoint to capture even disabled elements
+    // Hide overlay to get the actual element underneath (works for disabled elements too)
+    overlay.style.display = 'none';
     var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el === overlay) return;
+    overlay.style.display = 'block';
+    if (!el) return;
 
     // Collect element data
     var attrs = {};
