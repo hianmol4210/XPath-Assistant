@@ -141,6 +141,25 @@ const PICKER_SCRIPT = `
 
   console.log('[QA Automation Picker] Started - mousedown/pointerdown/click listeners active');
 
+  // Pause: remove listeners but keep state (allows normal page interaction)
+  window.__qaAutomationPause = function() {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mousedown', onClick, true);
+    document.removeEventListener('pointerdown', onClick, true);
+    document.removeEventListener('click', onClick, true);
+    overlay.style.display = 'none';
+    console.log('[QA Automation Picker] Paused - clicks work normally now');
+  };
+
+  // Resume: re-add listeners
+  window.__qaAutomationResume = function() {
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mousedown', onClick, true);
+    document.addEventListener('pointerdown', onClick, true);
+    document.addEventListener('click', onClick, true);
+    console.log('[QA Automation Picker] Resumed - capture mode active');
+  };
+
   window.__qaAutomationCleanup = function() {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('mousedown', onClick, true);
@@ -152,6 +171,8 @@ const PICKER_SCRIPT = `
     }
     delete window.__qaAutomationPicker;
     delete window.__qaAutomationCleanup;
+    delete window.__qaAutomationPause;
+    delete window.__qaAutomationResume;
     delete window.__qaAutomationLastCapture;
     delete window.__qaAutomationHeartbeat;
     delete window.__qaAutomationHeartbeatTimer;
@@ -175,6 +196,26 @@ const STOP_PICKER_SCRIPT = `
   if (window.__qaAutomationCleanup) {
     window.__qaAutomationCleanup();
     return '__QA_PICKER_STOPPED__';
+  }
+  return '__QA_PICKER_NOT_ACTIVE__';
+})();
+`;
+
+const PAUSE_PICKER_SCRIPT = `
+(function() {
+  if (window.__qaAutomationPause) {
+    window.__qaAutomationPause();
+    return '__QA_PICKER_PAUSED__';
+  }
+  return '__QA_PICKER_NOT_ACTIVE__';
+})();
+`;
+
+const RESUME_PICKER_SCRIPT = `
+(function() {
+  if (window.__qaAutomationResume) {
+    window.__qaAutomationResume();
+    return '__QA_PICKER_RESUMED__';
   }
   return '__QA_PICKER_NOT_ACTIVE__';
 })();
@@ -321,8 +362,12 @@ export function useDevToolsConnection(): DevToolsConnection {
     } else if (captureMode === 'idle' && (prev === 'capturing' || prev === 'paused')) {
       stopCapture();
     } else if (captureMode === 'paused' && prev === 'capturing') {
+      // Pause: remove picker listeners so clicks work normally on the page
       stopPolling();
+      evalOnPage(PAUSE_PICKER_SCRIPT);
     } else if (captureMode === 'capturing' && prev === 'paused') {
+      // Resume: re-add picker listeners
+      evalOnPage(RESUME_PICKER_SCRIPT);
       startPolling();
     }
   }, [captureMode, startCapture, stopCapture, startPolling, stopPolling]);
