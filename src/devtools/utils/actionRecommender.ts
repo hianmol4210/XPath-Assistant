@@ -27,6 +27,7 @@ export type ActionType =
   | 'wait-for-element'
   | 'wait-until-visible'
   | 'wait-until-hidden'
+  | 'wait-disable'
   | 'verify-exists'
   | 'verify-text'
   | 'verify-visible'
@@ -63,6 +64,7 @@ const ALTERNATIVES: Record<ActionType, ActionType[]> = {
   'wait-for-element': ['wait-until-visible', 'verify-exists'],
   'wait-until-visible': ['wait-for-element', 'verify-visible'],
   'wait-until-hidden': ['wait-for-element', 'verify-exists'],
+  'wait-disable': ['wait-for-element', 'wait-until-visible', 'verify-exists'],
   'verify-exists': ['verify-visible', 'verify-text'],
   'verify-text': ['verify-exists', 'verify-visible'],
   'verify-visible': ['verify-exists', 'verify-text'],

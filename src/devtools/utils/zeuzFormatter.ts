@@ -70,6 +70,7 @@ const ACTION_VERB_MAP: Record<string, string> = {
   'wait-for-element': 'Wait for',
   'wait-until-visible': 'Wait until visible',
   'wait-until-hidden': 'Wait until hidden',
+  'wait-disable': 'Wait disable',
   'verify-exists': 'Verify',
   'verify-text': 'Verify text of',
   'verify-visible': 'Verify visible',
@@ -105,11 +106,13 @@ function getActionRow(action: ActionType): ZeuzRow {
     case 'scroll-into-view':
       return { field: 'scroll', type: 'selenium action', value: 'scroll into view' };
     case 'wait-for-element':
-      return { field: 'wait', type: 'selenium action', value: 'wait for element' };
+      return { field: 'wait', type: 'selenium action', value: '10' };
     case 'wait-until-visible':
-      return { field: 'wait', type: 'selenium action', value: 'wait until visible' };
+      return { field: 'wait', type: 'selenium action', value: '10' };
     case 'wait-until-hidden':
-      return { field: 'wait', type: 'selenium action', value: 'wait until hidden' };
+      return { field: 'wait', type: 'selenium action', value: '10' };
+    case 'wait-disable':
+      return { field: 'wait disable', type: 'selenium action', value: '10' };
     case 'verify-exists':
       return { field: 'verify', type: 'selenium action', value: 'element exists' };
     case 'verify-text':

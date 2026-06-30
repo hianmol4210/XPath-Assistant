@@ -22,6 +22,7 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: 'wait-for-element', label: 'Wait For Element' },
   { value: 'wait-until-visible', label: 'Wait Until Visible' },
   { value: 'wait-until-hidden', label: 'Wait Until Hidden' },
+  { value: 'wait-disable', label: 'Wait Disable' },
   { value: 'verify-exists', label: 'Verify Exists' },
   { value: 'verify-text', label: 'Verify Text' },
   { value: 'verify-visible', label: 'Verify Visible' },
