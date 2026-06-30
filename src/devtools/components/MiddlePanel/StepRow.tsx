@@ -255,17 +255,12 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
 
       {/* XPath section — separate from ZeuZ */}
       <div className="px-3 py-2 bg-surface/50 rounded-b-lg border-t border-surface/30">
+        {/* Variable name + match badge */}
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs font-mono text-accent font-bold">
             {step.zeuzStep.locatorName}
           </span>
           <span className="text-xs text-text-muted">=</span>
-          <span className={`text-xs font-mono flex-1 truncate ${
-            step.selector.matchCount === 1 ? 'text-success' :
-            step.selector.matchCount > 1 ? 'text-error' : 'text-text-muted'
-          }`} title={step.zeuzStep.locator}>
-            {step.zeuzStep.locator}
-          </span>
           {step.selector.matchCount >= 0 && (
             <span className={`text-xs px-1.5 py-0.5 rounded ${
               step.selector.matchCount === 1 ? 'bg-success/20 text-success' : 'bg-error/20 text-error'
@@ -275,8 +270,16 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           )}
         </div>
 
+        {/* Full XPath on its own line — wraps, fully selectable */}
+        <div className={`text-xs font-mono break-all select-all cursor-text p-1.5 rounded bg-surface ${
+          step.selector.matchCount === 1 ? 'text-success' :
+          step.selector.matchCount > 1 ? 'text-error' : 'text-text-muted'
+        }`}>
+          {step.zeuzStep.locator}
+        </div>
+
         {/* Copy XPath button */}
-        <div className="flex justify-end mt-1">
+        <div className="flex justify-end mt-1.5">
           <button
             className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
               copiedXpath
