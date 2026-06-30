@@ -219,52 +219,86 @@ function generateLocatorName(element: CapturedElement): string {
 
 /**
  * Generates the LOCATOR XPath from the element and parent parameters.
- * Mimics how ZeuZ builds the XPath from its parameters.
+ * Uses priority: aria-label > placeholder > formcontrolname > id > name > class+text
+ * Adds parent context for complex elements.
  */
 function generateLocator(element: CapturedElement): string {
   const conditions: string[] = [];
 
-  // Add class condition (contains for partial match)
-  if (element.classes.length > 0) {
-    const stableClasses = element.classes.filter(c => !isDynamicValue(c));
-    if (stableClasses.length > 0) {
-      conditions.push(`contains(@class, '${stableClasses[0]}')`);
-    }
+  // Priority 1: aria-label (very stable)
+  const ariaLabel = element.ariaAttributes['aria-label'] || element.attributes['aria-label'];
+  if (ariaLabel && !isDynamicValue(ariaLabel)) {
+    conditions.push(`@aria-label='${ariaLabel}'`);
   }
 
-  // Add id condition
-  if (element.id && !isDynamicValue(element.id)) {
-    conditions.push(`@id='${element.id}'`);
-  }
-
-  // Add name condition
-  if (element.name) {
-    conditions.push(`@name='${element.name}'`);
-  }
-
-  // Add href condition (for links)
-  const href = element.attributes['href'];
-  if (href) {
-    conditions.push(`@href='${href}'`);
-  }
-
-  // Add text condition
-  if (element.text && element.text.trim() && element.text.trim().length <= 60) {
-    conditions.push(`normalize-space(.)='${element.text.trim()}'`);
-  }
-
-  // Add placeholder
+  // Priority 2: placeholder (stable for inputs)
   const placeholder = element.attributes['placeholder'];
   if (placeholder) {
     conditions.push(`@placeholder='${placeholder}'`);
   }
 
-  // Build the xpath
-  if (conditions.length === 0) {
-    return `//${element.tag}`;
+  // Priority 3: formcontrolname (Angular forms - very stable)
+  const formControlName = element.attributes['formcontrolname'];
+  if (formControlName && !isDynamicValue(formControlName)) {
+    conditions.push(`@formcontrolname='${formControlName}'`);
   }
 
-  return `//*[${conditions.join(' and ')}]`;
+  // Priority 4: data-testid
+  const testId = element.attributes['data-testid'];
+  if (testId && !isDynamicValue(testId)) {
+    conditions.push(`@data-testid='${testId}'`);
+  }
+
+  // Priority 5: id (if stable)
+  if (element.id && !isDynamicValue(element.id)) {
+    conditions.push(`@id='${element.id}'`);
+  }
+
+  // Priority 6: name
+  if (element.name && !isDynamicValue(element.name)) {
+    conditions.push(`@name='${element.name}'`);
+  }
+
+  // Priority 7: stable class (contains match)
+  if (element.classes.length > 0) {
+    const stableClasses = element.classes.filter(c => !isDynamicValue(c) && c.length > 3);
+    if (stableClasses.length > 0) {
+      conditions.push(`contains(@class, '${stableClasses[0]}')`);
+    }
+  }
+
+  // Priority 8: text (for buttons, links, labels)
+  if (element.text && element.text.trim() && element.text.trim().length <= 60) {
+    conditions.push(`normalize-space(.)='${element.text.trim()}'`);
+  }
+
+  // Priority 9: href (for links)
+  const href = element.attributes['href'];
+  if (href && !isDynamicValue(href)) {
+    conditions.push(`@href='${href}'`);
+  }
+
+  // Build base xpath
+  let xpath: string;
+  if (conditions.length === 0) {
+    xpath = `//${element.tag}`;
+  } else {
+    xpath = `//*[${conditions.join(' and ')}]`;
+  }
+
+  // Add parent context for more complex identification
+  const { hierarchy } = element;
+  if (hierarchy.parentId && !isDynamicValue(hierarchy.parentId)) {
+    xpath = `//*[@id='${hierarchy.parentId}']${xpath.replace('//', '/')}`;
+  } else if (hierarchy.parentClasses.length > 0) {
+    const stableParentClass = hierarchy.parentClasses.find(c => !isDynamicValue(c) && c.length > 3);
+    if (stableParentClass && conditions.length <= 1) {
+      // Only add parent context if our element doesn't have enough unique identifiers
+      xpath = `//*[contains(@class, '${stableParentClass}')]${xpath.replace('//', '/')}`;
+    }
+  }
+
+  return xpath;
 }
 
 // ─── Main formatter ─────────────────────────────────────────────────────────────
@@ -307,7 +341,7 @@ export function formatAsZeuzStep(
   }
 
   // Name
-  if (element.name) {
+  if (element.name && !isDynamicValue(element.name)) {
     rows.push({ field: 'name', type: 'element parameter', value: element.name });
   }
 
@@ -317,9 +351,21 @@ export function formatAsZeuzStep(
     rows.push({ field: 'placeholder', type: 'element parameter', value: placeholder });
   }
 
+  // aria-label (very stable locator)
+  const ariaLabel = element.ariaAttributes['aria-label'] || element.attributes['aria-label'];
+  if (ariaLabel && !isDynamicValue(ariaLabel)) {
+    rows.push({ field: 'aria-label', type: 'element parameter', value: ariaLabel });
+  }
+
+  // formcontrolname (Angular - very stable)
+  const formControlName = element.attributes['formcontrolname'];
+  if (formControlName && !isDynamicValue(formControlName)) {
+    rows.push({ field: 'formcontrolname', type: 'element parameter', value: formControlName });
+  }
+
   // data-testid
   const testId = element.attributes['data-testid'] || element.dataAttributes['data-testid'];
-  if (testId) {
+  if (testId && !isDynamicValue(testId)) {
     rows.push({ field: 'data-testid', type: 'element parameter', value: testId });
   }
 
@@ -334,7 +380,7 @@ export function formatAsZeuzStep(
 
   // Class with * prefix (contains match) — element's own class as parent param
   if (element.classes.length > 0) {
-    const stableClasses = element.classes.filter(c => !isDynamicValue(c));
+    const stableClasses = element.classes.filter(c => !isDynamicValue(c) && c.length > 3);
     if (stableClasses.length > 0) {
       rows.push({ field: '*class', type: 'parent parameter', value: stableClasses.join(' ') });
     }
@@ -342,28 +388,33 @@ export function formatAsZeuzStep(
 
   // href (for links/anchors)
   const href = element.attributes['href'];
-  if (href) {
+  if (href && !isDynamicValue(href)) {
     rows.push({ field: 'href', type: 'parent parameter', value: href });
   }
 
   // src (for images/iframes)
   const src = element.attributes['src'];
-  if (src) {
+  if (src && !isDynamicValue(src)) {
     rows.push({ field: 'src', type: 'parent parameter', value: src });
   }
 
-  // Parent container class (to narrow down when multiple similar elements exist)
+  // Parent container context (to narrow down when multiple similar elements exist)
   const { hierarchy } = element;
   if (hierarchy.parentId && !isDynamicValue(hierarchy.parentId)) {
     rows.push({ field: 'id', type: 'parent parameter', value: hierarchy.parentId });
   } else if (hierarchy.parentClasses.length > 0) {
     const parentClass = hierarchy.parentClasses
-      .filter(c => c.length > 2 && !isDynamicValue(c))
+      .filter(c => c.length > 3 && !isDynamicValue(c))
       .slice(0, 2)
       .join(' ');
     if (parentClass) {
       rows.push({ field: '*class', type: 'parent parameter', value: parentClass });
     }
+  }
+
+  // Sibling index (child position — useful when elements are identical)
+  if (hierarchy.totalSiblings > 1) {
+    rows.push({ field: 'child_index', type: 'parent parameter', value: String(hierarchy.siblingIndex + 1) });
   }
 
   // ─── Optional options ──────────────────────────────────────────────────────
@@ -431,12 +482,30 @@ export function copyAllSteps(steps: ZeuzStep[]): string {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
+/**
+ * Detects if a value looks dynamically generated.
+ * Catches: UUIDs, Angular/React/Material IDs, numeric suffixes, random hashes
+ */
 function isDynamicValue(value: string): boolean {
+  if (!value) return true;
+  // UUID pattern
   if (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(value)) return true;
+  // Angular generated
   if (/^_ngcontent-/.test(value) || /^_nghost-/.test(value)) return true;
   if (/^ng-/.test(value) || /^cdk-/.test(value)) return true;
+  // React generated
   if (/^react-/.test(value) || /^:r[0-9a-z]+:$/.test(value)) return true;
-  if (/[-_]\d{4,}$/.test(value)) return true;
+  // Material/CDK
   if (/^mat-/.test(value) || /^mdc-/.test(value)) return true;
+  // Ends with numbers (e.g., input-3, cdk-step-0-1)
+  if (/[-_]\d+$/.test(value)) return true;
+  // Starts with numbers
+  if (/^\d+[-_]/.test(value)) return true;
+  // Contains numbers in the middle with dashes (e.g., content-0-1, step-2-panel)
+  if (/\d+-\d+/.test(value)) return true;
+  // Random hash-like suffix (5+ alphanumeric chars that look random)
+  if (/[-_][a-z0-9]{5,}$/i.test(value) && /\d/.test(value)) return true;
+  // Very short single-char classes that are likely generated
+  if (value.length <= 2 && /[a-z]/i.test(value)) return true;
   return false;
 }
