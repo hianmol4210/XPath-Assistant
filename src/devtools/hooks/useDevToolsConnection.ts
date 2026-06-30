@@ -36,12 +36,16 @@ const PICKER_SCRIPT = `
   overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:2px solid #3b82f6;background:rgba(59,130,246,0.1);border-radius:2px;display:none;transition:all 0.05s ease-out;';
   document.documentElement.appendChild(overlay);
 
+  // Track the last element found under cursor (works even for disabled elements)
+  var lastHoveredElement = null;
+
   function onMove(e) {
-    // Hide overlay to detect element underneath
+    // Hide overlay to detect element underneath (even disabled ones)
     overlay.style.display = 'none';
     var el = document.elementFromPoint(e.clientX, e.clientY);
     overlay.style.display = 'block';
     if (!el) { overlay.style.display = 'none'; return; }
+    lastHoveredElement = el;
     var rect = el.getBoundingClientRect();
     overlay.style.top = rect.top + 'px';
     overlay.style.left = rect.left + 'px';
@@ -53,10 +57,21 @@ const PICKER_SCRIPT = `
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-    // Hide overlay to get the actual element underneath (works for disabled elements too)
-    overlay.style.display = 'none';
-    var el = document.elementFromPoint(e.clientX, e.clientY);
-    overlay.style.display = 'block';
+
+    // Debounce: prevent capturing same click from multiple event types
+    var now = Date.now();
+    if (window.__qaLastCaptureTime && (now - window.__qaLastCaptureTime) < 300) return;
+    window.__qaLastCaptureTime = now;
+
+    // Use lastHoveredElement which was detected during mousemove
+    // This works for disabled elements since mousemove + elementFromPoint detects them
+    var el = lastHoveredElement;
+    if (!el) {
+      // Fallback: try elementFromPoint
+      overlay.style.display = 'none';
+      el = document.elementFromPoint(e.clientX, e.clientY);
+      overlay.style.display = 'block';
+    }
     if (!el) return;
 
     // Collect element data
@@ -121,12 +136,16 @@ const PICKER_SCRIPT = `
 
   document.addEventListener('mousemove', onMove, true);
   document.addEventListener('mousedown', onClick, true);
+  document.addEventListener('pointerdown', onClick, true);
+  document.addEventListener('click', onClick, true);
 
-  console.log('[QA Automation Picker] Started - mousedown listener active');
+  console.log('[QA Automation Picker] Started - mousedown/pointerdown/click listeners active');
 
   window.__qaAutomationCleanup = function() {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('mousedown', onClick, true);
+    document.removeEventListener('pointerdown', onClick, true);
+    document.removeEventListener('click', onClick, true);
     overlay.remove();
     delete window.__qaAutomationPicker;
     delete window.__qaAutomationCleanup;
