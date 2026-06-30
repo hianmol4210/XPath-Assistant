@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "QA Automation Assistant",
+  "version": "1.0.0",
+  "description": "Chrome DevTools Extension for QA automation - smart element capture with ZeuZ-format output",
+  "devtools_page": "devtools-page.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["activeTab", "scripting", "storage"]
+}
