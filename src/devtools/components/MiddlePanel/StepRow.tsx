@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore, Step } from '../../store';
 import { ActionType } from '../../utils/actionRecommender';
-import { copyZeuzStep } from '../../utils/zeuzFormatter';
+import { copyZeuzStep, formatAsZeuzStep } from '../../utils/zeuzFormatter';
 
 interface StepRowProps {
   step: Step;
@@ -21,8 +21,10 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: 'upload-file', label: 'Upload File' },
   { value: 'wait-for-element', label: 'Wait For Element' },
   { value: 'wait-until-visible', label: 'Wait Until Visible' },
+  { value: 'wait-until-hidden', label: 'Wait Until Hidden' },
   { value: 'verify-exists', label: 'Verify Exists' },
   { value: 'verify-text', label: 'Verify Text' },
+  { value: 'verify-visible', label: 'Verify Visible' },
 ];
 
 /**
@@ -119,7 +121,10 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
 
   const handleActionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     e.stopPropagation();
-    updateStep(step.id, { action: e.target.value as ActionType });
+    const newAction = e.target.value as ActionType;
+    // Regenerate ZeuZ step with new action
+    const newZeuzStep = formatAsZeuzStep(step.element, newAction, step.stepNumber);
+    updateStep(step.id, { action: newAction, zeuzStep: newZeuzStep });
   };
 
   const handleMouseEnter = () => {
