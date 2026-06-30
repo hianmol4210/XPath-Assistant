@@ -283,18 +283,19 @@ function generateLocator(element: CapturedElement): string {
   if (conditions.length === 0) {
     xpath = `//${element.tag}`;
   } else {
-    xpath = `//*[${conditions.join(' and ')}]`;
+    // Use tag-specific path when we have the tag (more precise than //*) 
+    xpath = `//${element.tag}[${conditions.join(' and ')}]`;
   }
 
-  // Add parent context for more complex identification
+  // Add parent context to make it more unique
   const { hierarchy } = element;
   if (hierarchy.parentId && !isDynamicValue(hierarchy.parentId)) {
-    xpath = `//*[@id='${hierarchy.parentId}']${xpath.replace('//', '/')}`;
+    xpath = `//*[@id='${hierarchy.parentId}']/${element.tag}[${conditions.length > 0 ? conditions.join(' and ') : ''}]`.replace('[' + ']', '');
   } else if (hierarchy.parentClasses.length > 0) {
     const stableParentClass = hierarchy.parentClasses.find(c => !isDynamicValue(c) && c.length > 3);
-    if (stableParentClass && conditions.length <= 1) {
-      // Only add parent context if our element doesn't have enough unique identifiers
-      xpath = `//*[contains(@class, '${stableParentClass}')]${xpath.replace('//', '/')}`;
+    if (stableParentClass) {
+      // Wrap with parent context: //*[contains(@class,'parent')]//tag[conditions]
+      xpath = `//*[contains(@class, '${stableParentClass}')]//${element.tag}[${conditions.length > 0 ? conditions.join(' and ') : ''}]`.replace('[' + ']', '');
     }
   }
 
@@ -410,11 +411,6 @@ export function formatAsZeuzStep(
     if (parentClass) {
       rows.push({ field: '*class', type: 'parent parameter', value: parentClass });
     }
-  }
-
-  // Sibling index (child position — useful when elements are identical)
-  if (hierarchy.totalSiblings > 1) {
-    rows.push({ field: 'child_index', type: 'parent parameter', value: String(hierarchy.siblingIndex + 1) });
   }
 
   // ─── Optional options ──────────────────────────────────────────────────────
