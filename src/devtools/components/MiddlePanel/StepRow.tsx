@@ -26,20 +26,17 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
 ];
 
 /**
- * Copy text to clipboard — works in DevTools panels where navigator.clipboard may fail
+ * Copy text to clipboard — works in DevTools panels
  */
 function copyToClipboard(text: string): boolean {
   try {
-    // Try modern API first
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text);
       return true;
     }
   } catch (e) {
-    // Fall through to fallback
+    // Fall through
   }
-
-  // Fallback: use execCommand
   try {
     const textarea = document.createElement('textarea');
     textarea.value = text;
@@ -63,17 +60,28 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
   const removeStep = useStore((s) => s.removeStep);
   const updateStep = useStore((s) => s.updateStep);
   const setHighlightXpath = useStore((s) => s.setHighlightXpath);
-  const [copied, setCopied] = useState(false);
+  const [copiedZeuz, setCopiedZeuz] = useState(false);
+  const [copiedXpath, setCopiedXpath] = useState(false);
 
   const isSelected = selectedStepId === step.id;
 
-  const handleCopy = (e: React.MouseEvent) => {
+  // Copy ZeuZ parameters only
+  const handleCopyZeuz = (e: React.MouseEvent) => {
     e.stopPropagation();
     const text = copyZeuzStep(step.zeuzStep);
-    const success = copyToClipboard(text);
-    if (success) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+    if (copyToClipboard(text)) {
+      setCopiedZeuz(true);
+      setTimeout(() => setCopiedZeuz(false), 1500);
+    }
+  };
+
+  // Copy XPath as variable assignment: xpath_name = //*[...]
+  const handleCopyXpath = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const text = `${step.zeuzStep.locatorName} = ${step.zeuzStep.locator}`;
+    if (copyToClipboard(text)) {
+      setCopiedXpath(true);
+      setTimeout(() => setCopiedXpath(false), 1500);
     }
   };
 
@@ -130,19 +138,6 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           ))}
         </select>
 
-        {/* Copy button */}
-        <button
-          className={`flex-shrink-0 px-2 py-0.5 rounded text-xs transition-colors ${
-            copied
-              ? 'bg-success/20 text-success'
-              : 'bg-surface hover:bg-primary-500/20 text-text-muted hover:text-primary-400'
-          }`}
-          onClick={handleCopy}
-          title="Copy ZeuZ step"
-        >
-          {copied ? '✓ Copied' : '📋 Copy'}
-        </button>
-
         {/* Delete button */}
         <button
           className="flex-shrink-0 p-1 rounded hover:bg-error/20 text-text-muted hover:text-error transition-colors text-xs"
@@ -153,7 +148,7 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
         </button>
       </div>
 
-      {/* ZeuZ parameter rows — what you copy-paste into ZeuZ */}
+      {/* ZeuZ parameter rows */}
       <div className="px-3 py-1.5">
         <table className="w-full text-xs font-mono">
           <tbody>
@@ -177,13 +172,35 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
             ))}
           </tbody>
         </table>
+
+        {/* Copy ZeuZ button */}
+        <div className="mt-2 flex justify-end">
+          <button
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              copiedZeuz
+                ? 'bg-success/20 text-success'
+                : 'bg-primary-500/10 text-primary-400 hover:bg-primary-500/20'
+            }`}
+            onClick={handleCopyZeuz}
+            title="Copy ZeuZ parameters"
+          >
+            {copiedZeuz ? '✓ Copied ZeuZ' : '📋 Copy ZeuZ'}
+          </button>
+        </div>
       </div>
 
-      {/* LOCATOR — auto-generated XPath with variable name */}
-      <div className="px-3 py-1.5 bg-surface/50 rounded-b-lg">
+      {/* XPath section — separate from ZeuZ */}
+      <div className="px-3 py-2 bg-surface/50 rounded-b-lg border-t border-surface/30">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs font-mono text-accent font-bold">
             {step.zeuzStep.locatorName}
+          </span>
+          <span className="text-xs text-text-muted">=</span>
+          <span className={`text-xs font-mono flex-1 truncate ${
+            step.selector.matchCount === 1 ? 'text-success' :
+            step.selector.matchCount > 1 ? 'text-error' : 'text-text-muted'
+          }`} title={step.zeuzStep.locator}>
+            {step.zeuzStep.locator}
           </span>
           {step.selector.matchCount >= 0 && (
             <span className={`text-xs px-1.5 py-0.5 rounded ${
@@ -193,11 +210,20 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
             </span>
           )}
         </div>
-        <div className={`text-xs font-mono truncate ${
-          step.selector.matchCount === 1 ? 'text-success' :
-          step.selector.matchCount > 1 ? 'text-error' : 'text-text-muted'
-        }`} title={step.zeuzStep.locator}>
-          {step.zeuzStep.locator}
+
+        {/* Copy XPath button */}
+        <div className="flex justify-end mt-1">
+          <button
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              copiedXpath
+                ? 'bg-success/20 text-success'
+                : 'bg-accent/10 text-accent hover:bg-accent/20'
+            }`}
+            onClick={handleCopyXpath}
+            title="Copy XPath as variable assignment"
+          >
+            {copiedXpath ? '✓ Copied XPath' : '📋 Copy XPath'}
+          </button>
         </div>
       </div>
     </div>
