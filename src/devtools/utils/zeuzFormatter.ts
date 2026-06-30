@@ -320,6 +320,13 @@ export function formatAsZeuzStep(
     rows.push({ field: 'data-testid', type: 'element parameter', value: testId });
   }
 
+  // disabled attribute — important for wait/validation steps
+  if (element.state && !element.state.enabled) {
+    rows.push({ field: 'disabled', type: 'element parameter', value: '' });
+  } else if (element.attributes['disabled'] !== undefined) {
+    rows.push({ field: 'disabled', type: 'element parameter', value: '' });
+  }
+
   // ─── Parent parameters (narrow down context) ──────────────────────────────
 
   // Class with * prefix (contains match) — element's own class as parent param

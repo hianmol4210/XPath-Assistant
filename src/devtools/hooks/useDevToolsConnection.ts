@@ -37,7 +37,7 @@ const PICKER_SCRIPT = `
   document.documentElement.appendChild(overlay);
 
   function onMove(e) {
-    var el = e.target;
+    var el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el || el === overlay) return;
     var rect = el.getBoundingClientRect();
     overlay.style.top = rect.top + 'px';
@@ -51,7 +51,8 @@ const PICKER_SCRIPT = `
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-    var el = e.target;
+    // Use elementFromPoint to capture even disabled elements
+    var el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el || el === overlay) return;
 
     // Collect element data
@@ -111,11 +112,11 @@ const PICKER_SCRIPT = `
   }
 
   document.addEventListener('mousemove', onMove, true);
-  document.addEventListener('click', onClick, true);
+  document.addEventListener('mousedown', onClick, true);
 
   window.__qaAutomationCleanup = function() {
     document.removeEventListener('mousemove', onMove, true);
-    document.removeEventListener('click', onClick, true);
+    document.removeEventListener('mousedown', onClick, true);
     overlay.remove();
     delete window.__qaAutomationPicker;
     delete window.__qaAutomationCleanup;
