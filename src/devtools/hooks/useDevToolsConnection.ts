@@ -73,8 +73,8 @@ const PICKER_SCRIPT = `
 
     var data = {
       tag: el.tagName.toLowerCase(),
-      text: (el.textContent || '').trim().substring(0, 200),
-      innerText: (el.innerText || '').trim().substring(0, 500),
+      text: (el.textContent || '').substring(0, 200),
+      innerText: (el.innerText || '').substring(0, 500),
       id: el.id || '',
       name: el.getAttribute('name') || '',
       classes: Array.from(el.classList),

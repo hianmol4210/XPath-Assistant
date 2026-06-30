@@ -54,6 +54,33 @@ function copyToClipboard(text: string): boolean {
   }
 }
 
+/**
+ * Small copy icon button for individual values
+ */
+const CopyValueButton: React.FC<{ value: string }> = ({ value }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (copyToClipboard(value)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    }
+  };
+
+  return (
+    <button
+      className={`p-0.5 rounded transition-colors ${
+        copied ? 'text-success' : 'text-text-muted/50 hover:text-text-muted'
+      }`}
+      onClick={handleClick}
+      title="Copy value"
+    >
+      {copied ? '✓' : '⧉'}
+    </button>
+  );
+};
+
 export const StepRow: React.FC<StepRowProps> = ({ step }) => {
   const selectedStepId = useStore((s) => s.selectedStepId);
   const selectStep = useStore((s) => s.selectStep);
@@ -167,6 +194,9 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
                 </td>
                 <td className="py-1 text-text break-all">
                   {row.value}
+                </td>
+                <td className="py-1 pl-1 w-5">
+                  <CopyValueButton value={row.value} />
                 </td>
               </tr>
             ))}

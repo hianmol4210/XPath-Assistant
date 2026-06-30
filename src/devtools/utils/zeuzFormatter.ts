@@ -290,9 +290,9 @@ export function formatAsZeuzStep(
 
   // ─── Element parameters (identify the target) ──────────────────────────────
 
-  // Text — primary identifier
-  if (element.text && element.text.trim()) {
-    rows.push({ field: 'text', type: 'element parameter', value: element.text.trim() });
+  // Text — primary identifier (keep exact text with spaces for accurate matching)
+  if (element.text && element.text.length > 0) {
+    rows.push({ field: 'text', type: 'element parameter', value: element.text });
   }
 
   // Tag — useful for ZeuZ to know element type
