@@ -390,25 +390,43 @@ export function formatAsZeuzStep(
 // ─── Copy functions ─────────────────────────────────────────────────────────────
 
 /**
- * Formats a single ZeuZ step as tab-separated text ready for copy-paste.
+ * Formats a single ZeuZ step as JSON for copy-paste into ZeuZ tool.
+ * Format: [{"action_name":"...","action_disabled":"...","step_actions":[[field,type,value],...]}]
  */
 export function copyZeuzStep(step: ZeuzStep): string {
-  const lines: string[] = [step.title];
+  const isDisabled = step.rows.some(r => r.field === 'disabled');
+  
+  const stepActions: [string, string, string][] = step.rows
+    .filter(r => r.field !== 'disabled') // disabled is handled separately
+    .map(r => [r.field, r.type, r.value]);
 
-  for (const row of step.rows) {
-    lines.push(`${row.field}\t${row.type}\t${row.value}`);
-  }
+  const result = [{
+    action_name: step.title.replace(/^#\d+\s*/, ''), // Remove step number prefix
+    action_disabled: isDisabled ? 'true' : 'false',
+    step_actions: stepActions,
+  }];
 
-  lines.push(`LOCATOR\t${step.locator}`);
-
-  return lines.join('\n');
+  return JSON.stringify(result);
 }
 
 /**
- * Formats all steps as sequential ZeuZ output, separated by blank lines.
+ * Formats all steps as JSON array for copy-paste.
  */
 export function copyAllSteps(steps: ZeuzStep[]): string {
-  return steps.map(step => copyZeuzStep(step)).join('\n\n');
+  const result = steps.map(step => {
+    const isDisabled = step.rows.some(r => r.field === 'disabled');
+    const stepActions: [string, string, string][] = step.rows
+      .filter(r => r.field !== 'disabled')
+      .map(r => [r.field, r.type, r.value]);
+
+    return {
+      action_name: step.title.replace(/^#\d+\s*/, ''),
+      action_disabled: isDisabled ? 'true' : 'false',
+      step_actions: stepActions,
+    };
+  });
+
+  return JSON.stringify(result);
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
