@@ -1,0 +1,1 @@
+(()=>{"use strict";chrome.devtools.panels.create("QA Assistant","","devtools.html",t=>{console.log("QA Automation Assistant panel created")})})();
