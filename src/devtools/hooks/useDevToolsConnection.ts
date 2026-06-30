@@ -147,10 +147,24 @@ const PICKER_SCRIPT = `
     document.removeEventListener('pointerdown', onClick, true);
     document.removeEventListener('click', onClick, true);
     overlay.remove();
+    if (window.__qaAutomationHeartbeatTimer) {
+      clearInterval(window.__qaAutomationHeartbeatTimer);
+    }
     delete window.__qaAutomationPicker;
     delete window.__qaAutomationCleanup;
     delete window.__qaAutomationLastCapture;
+    delete window.__qaAutomationHeartbeat;
+    delete window.__qaAutomationHeartbeatTimer;
   };
+
+  // Heartbeat: auto-cleanup if DevTools stops pinging (closed)
+  window.__qaAutomationHeartbeat = Date.now();
+  window.__qaAutomationHeartbeatTimer = setInterval(function() {
+    if (Date.now() - window.__qaAutomationHeartbeat > 3000) {
+      console.log('[QA Automation Picker] No heartbeat - DevTools closed, cleaning up');
+      window.__qaAutomationCleanup();
+    }
+  }, 1000);
 
   return '__QA_PICKER_STARTED__';
 })();
@@ -168,6 +182,10 @@ const STOP_PICKER_SCRIPT = `
 
 const GET_CAPTURE_SCRIPT = `
 (function() {
+  // Heartbeat ping — tells the picker script that DevTools is still open
+  if (window.__qaAutomationHeartbeat !== undefined) {
+    window.__qaAutomationHeartbeat = Date.now();
+  }
   if (window.__qaAutomationLastCapture) {
     try {
       var data = JSON.stringify(window.__qaAutomationLastCapture);
