@@ -688,14 +688,12 @@ export function useDevToolsConnection(): DevToolsConnection {
       if (result && result !== 'null' && result !== 'undefined') {
         try {
           const element = JSON.parse(result) as CapturedElement;
-          // Dedup: skip if same element captured recently
-          const captureKey = `${element.tag}|${element.text?.substring(0, 50)}|${element.id}`;
-          const now = element.timestamp || Date.now();
-          if (captureKey === lastCaptureKeyRef.current && Math.abs(now - lastCaptureTimestampRef.current) < 1000) return;
+          // Dedup: skip if any capture happened within 1 second
+          const now = Date.now();
+          if (now - lastCaptureTimestampRef.current < 1000) return;
           lastCaptureTimestampRef.current = now;
-          lastCaptureKeyRef.current = captureKey;
           processElement(element);
-          return; // Don't double-process
+          return;
         } catch (e) {
           console.warn('[useCapture] Failed to parse capture data:', e);
         }
@@ -707,12 +705,10 @@ export function useDevToolsConnection(): DevToolsConnection {
           if (res.__qaLastCapturedElement) {
             const element = res.__qaLastCapturedElement as CapturedElement;
             chrome.storage.local.remove('__qaLastCapturedElement');
-            // Dedup: skip if same element captured recently
-            const captureKey = `${element.tag}|${element.text?.substring(0, 50)}|${element.id}`;
-            const now = element.timestamp || Date.now();
-            if (captureKey === lastCaptureKeyRef.current && Math.abs(now - lastCaptureTimestampRef.current) < 1000) return;
+            // Dedup: skip if any capture happened within 1 second
+            const now = Date.now();
+            if (now - lastCaptureTimestampRef.current < 1000) return;
             lastCaptureTimestampRef.current = now;
-            lastCaptureKeyRef.current = captureKey;
             processElement(element);
           }
         });
