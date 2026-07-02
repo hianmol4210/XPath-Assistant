@@ -154,7 +154,9 @@ function startPicker(recordMode: boolean) {
 
   document.addEventListener('mousemove', onMouseMove, true);
   if (recordMode) {
-    document.addEventListener('click', onClick, false); // no capture phase = pass-through
+    // Record mode: capture phase (so we see it even if framework stops propagation)
+    // but DON'T preventDefault/stopPropagation in the handler
+    document.addEventListener('click', onClick, true);
   } else {
     document.addEventListener('mousedown', onClick, true);
     document.addEventListener('pointerdown', onClick, true);
@@ -177,6 +179,7 @@ function stopPicker() {
     overlay = null;
   }
   lastHoveredElement = null;
+  console.log(`[QA Picker] 🛑 STOPPED in frame: ${window.location.href.substring(0, 60)}`);
 }
 
 // --- Message Listener ---
