@@ -674,8 +674,9 @@ export function useDevToolsConnection(): DevToolsConnection {
     setSelectedElement(element);
   }, [addStep, setSelectedElement]);
 
-  // Deduplication: track last capture timestamp to prevent double captures
+  // Deduplication: track last capture to prevent double captures
   const lastCaptureTimestampRef = useRef(0);
+  const lastCaptureKeyRef = useRef('');
 
   // Poll for captured elements (from both top-frame eval AND iframe content scripts via storage)
   const startPolling = useCallback(() => {
@@ -687,9 +688,12 @@ export function useDevToolsConnection(): DevToolsConnection {
       if (result && result !== 'null' && result !== 'undefined') {
         try {
           const element = JSON.parse(result) as CapturedElement;
-          // Dedup: skip if same timestamp as last capture (within 500ms)
-          if (element.timestamp && Math.abs(element.timestamp - lastCaptureTimestampRef.current) < 500) return;
-          lastCaptureTimestampRef.current = element.timestamp || Date.now();
+          // Dedup: skip if same element captured recently
+          const captureKey = `${element.tag}|${element.text?.substring(0, 50)}|${element.id}`;
+          const now = element.timestamp || Date.now();
+          if (captureKey === lastCaptureKeyRef.current && Math.abs(now - lastCaptureTimestampRef.current) < 1000) return;
+          lastCaptureTimestampRef.current = now;
+          lastCaptureKeyRef.current = captureKey;
           processElement(element);
           return; // Don't double-process
         } catch (e) {
@@ -703,9 +707,12 @@ export function useDevToolsConnection(): DevToolsConnection {
           if (res.__qaLastCapturedElement) {
             const element = res.__qaLastCapturedElement as CapturedElement;
             chrome.storage.local.remove('__qaLastCapturedElement');
-            // Dedup: skip if same timestamp as last capture (within 500ms)
-            if (element.timestamp && Math.abs(element.timestamp - lastCaptureTimestampRef.current) < 500) return;
-            lastCaptureTimestampRef.current = element.timestamp || Date.now();
+            // Dedup: skip if same element captured recently
+            const captureKey = `${element.tag}|${element.text?.substring(0, 50)}|${element.id}`;
+            const now = element.timestamp || Date.now();
+            if (captureKey === lastCaptureKeyRef.current && Math.abs(now - lastCaptureTimestampRef.current) < 1000) return;
+            lastCaptureTimestampRef.current = now;
+            lastCaptureKeyRef.current = captureKey;
             processElement(element);
           }
         });
