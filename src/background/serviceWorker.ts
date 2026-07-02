@@ -283,6 +283,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true; // Keep channel open for async response
   }
+  // SET capture state (called from DevTools panel)
+  if (message.type === 'SET_CAPTURE_STATE') {
+    chrome.storage.local.set({
+      __qaCaptureActive: !!message.active,
+      __qaRecordMode: !!message.recordMode,
+    });
+    sendResponse({ ok: true });
+    return false;
+  }
   // Forward ELEMENT_CAPTURED_FROM_FRAME to DevTools panel if needed
   if (message.type === 'ELEMENT_CAPTURED_FROM_FRAME') {
     // This is handled by the DevTools panel's onMessage listener directly

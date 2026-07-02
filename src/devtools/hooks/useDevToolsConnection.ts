@@ -734,9 +734,9 @@ export function useDevToolsConnection(): DevToolsConnection {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
-    // Set storage FIRST so iframes auto-detect via storage.onChanged
+    // Set state via background (reliable across all contexts)
     try {
-      chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: false });
+      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: false });
     } catch (e) {}
 
     await evalOnPage(PICKER_SCRIPT);
@@ -749,9 +749,9 @@ export function useDevToolsConnection(): DevToolsConnection {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
-    // Set storage FIRST so iframes auto-detect via storage.onChanged
+    // Set state via background (reliable across all contexts)
     try {
-      chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: true });
+      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: true });
     } catch (e) {}
 
     await evalOnPage(RECORD_SCRIPT);
@@ -767,9 +767,9 @@ export function useDevToolsConnection(): DevToolsConnection {
     stopPolling();
     await evalOnPage(STOP_PICKER_SCRIPT);
     await sendToAllFrames('STOP_CAPTURE');
-    // Clear persisted state so new frames don't auto-start
+    // Clear state via background
     try {
-      chrome.storage.local.set({ __qaCaptureActive: false, __qaRecordMode: false });
+      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: false, recordMode: false });
     } catch (e) {}
   }, [stopPolling, sendToAllFrames]);
 
