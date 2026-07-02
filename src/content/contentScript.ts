@@ -189,8 +189,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 // Auto-start if capture was already active (handles iframe reloads and navigation)
-// Retry a few times in case storage isn't ready immediately
+// Check immediately and also periodically (for frames that load late)
 function checkAndAutoStart(retries = 3) {
+  try {
+    // Method 1: Ask background service worker (most reliable for cross-origin frames)
+    chrome.runtime.sendMessage({ type: 'IS_CAPTURE_ACTIVE' }, (response) => {
+      if (chrome.runtime.lastError) {
+        // Fallback to storage
+        fallbackStorageCheck(retries);
+        return;
+      }
+      if (response && response.active && !isCapturing) {
+        startPicker(!!response.recordMode);
+      }
+    });
+  } catch (e) {
+    fallbackStorageCheck(retries);
+  }
+}
+
+function fallbackStorageCheck(retries: number) {
   try {
     chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode'], (result) => {
       if (chrome.runtime.lastError) {
@@ -201,12 +219,9 @@ function checkAndAutoStart(retries = 3) {
         startPicker(!!result.__qaRecordMode);
       }
     });
-  } catch (e) {
-    // Extension context might be invalid
-  }
+  } catch (e) {}
 }
 
-// Check immediately and also periodically (for frames that load late)
 checkAndAutoStart();
 setTimeout(() => checkAndAutoStart(), 1000);
 setTimeout(() => checkAndAutoStart(), 3000);

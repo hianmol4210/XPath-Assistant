@@ -271,4 +271,23 @@ chrome.tabs.onRemoved.addListener((tabId: number) => {
   }
 });
 
+// --- Simple message handler for content script queries ---
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'IS_CAPTURE_ACTIVE') {
+    // Check storage and respond
+    chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode'], (result) => {
+      sendResponse({
+        active: !!result.__qaCaptureActive,
+        recordMode: !!result.__qaRecordMode,
+      });
+    });
+    return true; // Keep channel open for async response
+  }
+  // Forward ELEMENT_CAPTURED_FROM_FRAME to DevTools panel if needed
+  if (message.type === 'ELEMENT_CAPTURED_FROM_FRAME') {
+    // This is handled by the DevTools panel's onMessage listener directly
+    return false;
+  }
+});
+
 console.log('[ServiceWorker] QA Automation Assistant background service worker initialized');
