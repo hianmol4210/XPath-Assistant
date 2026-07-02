@@ -182,6 +182,7 @@ function generateVariableName(element: EnrichedElement, suffix: string): string 
 /**
  * Determine the best target parameter for list extraction.
  * Looks at the element's children to determine what to extract.
+ * MUST produce a concrete tag name — ZeuZ cannot handle wildcards.
  */
 function buildTargetParameter(element: EnrichedElement): string {
   const childTags = element._childTags || [];
@@ -189,13 +190,20 @@ function buildTargetParameter(element: EnrichedElement): string {
   if (childTags.includes('td')) return 'tag="td", return="text"';
   if (childTags.includes('th')) return 'tag="th", return="text"';
   if (childTags.includes('li')) return 'tag="li", return="text"';
-  if (childTags.includes('span')) return 'tag="span", return="text"';
   if (childTags.includes('a')) return 'tag="a", return="text"';
+  if (childTags.includes('span')) return 'tag="span", return="text"';
+  if (childTags.includes('p')) return 'tag="p", return="text"';
   if (childTags.includes('div')) return 'tag="div", return="text"';
   if (childTags.length > 0) return `tag="${childTags[0]}", return="text"`;
 
-  // Fallback
-  return 'tag="*", return="text"';
+  // Fallback based on element type — use td for tr, li for ul/ol, span for div
+  if (element.tag === 'tr') return 'tag="td", return="text"';
+  if (element.tag === 'ul' || element.tag === 'ol') return 'tag="li", return="text"';
+  if (element.tag === 'tbody' || element.tag === 'table') return 'tag="td", return="text"';
+  if (element.tag === 'dl') return 'tag="dd", return="text"';
+
+  // Last resort: span is the safest concrete tag
+  return 'tag="span", return="text"';
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────────────
