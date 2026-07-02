@@ -115,12 +115,19 @@ function onClick(e: MouseEvent) {
 
   // Send data back to extension
   try {
+    console.log(`[QA Picker] 🖱️ CLICKED element: <${data.tag}> "${data.text.substring(0, 30)}" | sending to extension...`);
     chrome.runtime.sendMessage({
       type: 'ELEMENT_CAPTURED_FROM_FRAME',
       payload: data,
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log(`[QA Picker] ❌ sendMessage failed: ${chrome.runtime.lastError.message}`);
+      } else {
+        console.log(`[QA Picker] ✅ Data sent successfully`);
+      }
     });
   } catch (err) {
-    // Extension might be reloaded
+    console.log(`[QA Picker] ❌ Exception sending: ${err}`);
   }
 }
 
