@@ -322,6 +322,9 @@
   .w-16 {
     width: calc(var(--spacing) * 16);
   }
+  .w-20 {
+    width: calc(var(--spacing) * 20);
+  }
   .w-24 {
     width: calc(var(--spacing) * 24);
   }
@@ -809,6 +812,16 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-surface-mid);
+      }
+    }
+  }
+  .hover\:bg-warning\/20 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, #eab308 20%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-warning) 20%, transparent);
+        }
       }
     }
   }

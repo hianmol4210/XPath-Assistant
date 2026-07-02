@@ -87,6 +87,162 @@ const CopyValueButton: React.FC<{ value: string }> = ({ value }) => {
   );
 };
 
+// ─── Store Panel Component ───────────────────────────────────────────────────
+
+type StoreType = 'save-attribute' | 'save-list';
+
+const StorePanel: React.FC<{ step: Step; onCopy: () => void }> = ({ step, onCopy }) => {
+  const [storeType, setStoreType] = useState<StoreType>('save-attribute');
+  const [variableName, setVariableName] = useState(
+    `${step.zeuzStep.locatorName.replace('xpath_', '')}_value`
+  );
+  const [saveField, setSaveField] = useState('text');
+  const [targetParam, setTargetParam] = useState('tag="td", return="text"');
+  const [paired, setPaired] = useState('yes');
+  const [copiedStore, setCopiedStore] = useState(false);
+
+  const generateStoreJson = () => {
+    const stepActions: [string, string, string][] = [];
+
+    // Add element/parent parameters from the captured step
+    step.zeuzStep.rows.forEach(row => {
+      if (row.type === 'element parameter' || row.type === 'parent parameter') {
+        stepActions.push([row.field, row.type, row.value]);
+      }
+    });
+
+    if (storeType === 'save-attribute') {
+      // Single value save
+      stepActions.push([saveField, 'save parameter', variableName]);
+      stepActions.push(['save attribute', 'selenium action', 'save attribute']);
+    } else {
+      // Save as list
+      stepActions.push(['attributes', 'target parameter', targetParam]);
+      stepActions.push(['paired', 'optional parameter', paired]);
+      stepActions.push(['save attribute values in list', 'selenium action', variableName]);
+    }
+
+    const result = [{
+      action_name: storeType === 'save-attribute'
+        ? `Save ${saveField} of ${step.zeuzStep.title.replace(/^#\d+\s*/, '').replace(/^Click on\s*/, '').replace(/^Enter text in on\s*/, '')}`
+        : `Save list from ${step.zeuzStep.title.replace(/^#\d+\s*/, '').replace(/^Click on\s*/, '')}`,
+      action_disabled: 'false',
+      step_actions: stepActions,
+    }];
+
+    return JSON.stringify(result);
+  };
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const json = generateStoreJson();
+    if (copyToClipboard(json)) {
+      setCopiedStore(true);
+      onCopy();
+    }
+  };
+
+  return (
+    <div className="mt-2 p-3 bg-surface rounded-lg border border-warning/30" onClick={e => e.stopPropagation()}>
+      <div className="text-xs font-semibold text-warning mb-2">💾 Store Configuration</div>
+
+      {/* Store Type */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs text-text-muted w-20">Type:</span>
+        <select
+          className="bg-surface-light text-text text-xs rounded px-2 py-1 border border-surface-mid flex-1"
+          value={storeType}
+          onChange={e => setStoreType(e.target.value as StoreType)}
+        >
+          <option value="save-attribute">Save Attribute (single value)</option>
+          <option value="save-list">Save Attribute Values in List</option>
+        </select>
+      </div>
+
+      {/* Save Attribute fields */}
+      {storeType === 'save-attribute' && (
+        <>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-text-muted w-20">Field:</span>
+            <select
+              className="bg-surface-light text-text text-xs rounded px-2 py-1 border border-surface-mid flex-1"
+              value={saveField}
+              onChange={e => setSaveField(e.target.value)}
+            >
+              <option value="text">text</option>
+              <option value="id">id</option>
+              <option value="class">class</option>
+              <option value="href">href</option>
+              <option value="src">src</option>
+              <option value="value">value</option>
+              <option value="title">title</option>
+              <option value="innertext">innertext</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-text-muted w-20">Variable:</span>
+            <input
+              className="bg-surface-light text-text text-xs rounded px-2 py-1 border border-surface-mid flex-1 font-mono"
+              value={variableName}
+              onChange={e => setVariableName(e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Save List fields */}
+      {storeType === 'save-list' && (
+        <>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-text-muted w-20">Target:</span>
+            <input
+              className="bg-surface-light text-text text-xs rounded px-2 py-1 border border-surface-mid flex-1 font-mono"
+              value={targetParam}
+              onChange={e => setTargetParam(e.target.value)}
+              placeholder='tag="td", return="text"'
+            />
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-text-muted w-20">Paired:</span>
+            <select
+              className="bg-surface-light text-text text-xs rounded px-2 py-1 border border-surface-mid"
+              value={paired}
+              onChange={e => setPaired(e.target.value)}
+            >
+              <option value="yes">yes</option>
+              <option value="no">no</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-text-muted w-20">List name:</span>
+            <input
+              className="bg-surface-light text-text text-xs rounded px-2 py-1 border border-surface-mid flex-1 font-mono"
+              value={variableName}
+              onChange={e => setVariableName(e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Copy Store button */}
+      <div className="flex justify-end">
+        <button
+          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+            copiedStore
+              ? 'bg-success/20 text-success'
+              : 'bg-warning/10 text-warning hover:bg-warning/20'
+          }`}
+          onClick={handleCopy}
+        >
+          {copiedStore ? '✓ Copied Store Action' : '📋 Copy Store Action'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── StepRow Component ──────────────────────────────────────────────────────────
+
 export const StepRow: React.FC<StepRowProps> = ({ step }) => {
   const selectedStepId = useStore((s) => s.selectedStepId);
   const selectStep = useStore((s) => s.selectStep);
@@ -97,6 +253,8 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
   const toggleCheckedStep = useStore((s) => s.toggleCheckedStep);
   const [copiedZeuz, setCopiedZeuz] = useState(false);
   const [copiedXpath, setCopiedXpath] = useState(false);
+  const [showStore, setShowStore] = useState(false);
+  const [copiedStore, setCopiedStore] = useState(false);
 
   const isSelected = selectedStepId === step.id;
   const isChecked = checkedStepIds.has(step.id);
@@ -237,8 +395,19 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           </tbody>
         </table>
 
-        {/* Copy ZeuZ button */}
-        <div className="mt-2 flex justify-end">
+        {/* Copy ZeuZ button + Store button */}
+        <div className="mt-2 flex justify-end gap-2">
+          <button
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              showStore
+                ? 'bg-warning/20 text-warning'
+                : 'bg-warning/10 text-warning hover:bg-warning/20'
+            }`}
+            onClick={(e) => { e.stopPropagation(); setShowStore(!showStore); }}
+            title="Store value or list"
+          >
+            {showStore ? '✕ Close Store' : '💾 Store'}
+          </button>
           <button
             className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
               copiedZeuz
@@ -251,6 +420,11 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
             {copiedZeuz ? '✓ Copied ZeuZ' : '📋 Copy ZeuZ'}
           </button>
         </div>
+
+        {/* Store Panel — collapsible */}
+        {showStore && (
+          <StorePanel step={step} onCopy={() => { setCopiedStore(true); setTimeout(() => setCopiedStore(false), 0); }} />
+        )}
       </div>
 
       {/* XPath section — separate from ZeuZ */}
