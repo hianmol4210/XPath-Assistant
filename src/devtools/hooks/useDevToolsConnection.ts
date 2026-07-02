@@ -196,7 +196,7 @@ const PICKER_SCRIPT = `
   // Heartbeat: auto-cleanup if DevTools stops pinging (closed)
   window.__qaAutomationHeartbeat = Date.now();
   window.__qaAutomationHeartbeatTimer = setInterval(function() {
-    if (Date.now() - window.__qaAutomationHeartbeat > 3000) {
+    if (Date.now() - window.__qaAutomationHeartbeat > 30000) {
       console.log('[QA Automation Picker] No heartbeat - DevTools closed, cleaning up');
       window.__qaAutomationCleanup();
     }
@@ -499,7 +499,7 @@ const RECORD_SCRIPT = `
 
   window.__qaAutomationHeartbeat = Date.now();
   window.__qaAutomationHeartbeatTimer = setInterval(function() {
-    if (Date.now() - window.__qaAutomationHeartbeat > 3000) {
+    if (Date.now() - window.__qaAutomationHeartbeat > 30000) {
       console.log('[QA Automation Record] No heartbeat - cleaning up');
       window.__qaAutomationCleanup();
     }
