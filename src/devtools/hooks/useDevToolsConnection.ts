@@ -599,9 +599,57 @@ export function useDevToolsConnection(): DevToolsConnection {
   // Process a captured element — also evaluates XPath match count on the page
   const processElement = useCallback(async (element: CapturedElement) => {
     const selector = generateSelector(element);
+    const stepNumber = stepsRef.current.length + 1;
+
+    // ─── Special handling for iframe elements ─────────────────────────────────
+    if (element.tag === 'iframe') {
+      // Generate a "switch iframe" step instead of a click step
+      const iframeSrc = element.attributes['src'] || '';
+      const iframeId = element.id || '';
+      const iframeClass = element.classes.filter(c => c.length > 3).join(' ');
+
+      const zeuzRows: Array<{field: string; type: string; value: string}> = [];
+      zeuzRows.push({ field: 'index', type: 'iframe parameter', value: 'default content' });
+      
+      if (iframeId) {
+        zeuzRows.push({ field: 'id', type: 'iframe parameter', value: iframeId });
+      } else if (iframeClass) {
+        zeuzRows.push({ field: '*class', type: 'iframe parameter', value: iframeClass });
+      } else if (iframeSrc) {
+        zeuzRows.push({ field: 'src', type: 'iframe parameter', value: iframeSrc });
+      }
+      
+      zeuzRows.push({ field: 'switch iframe', type: 'selenium action', value: 'switch iframe' });
+
+      const zeuzStep = {
+        title: `#${stepNumber} Switch to iframe`,
+        stepNumber,
+        rows: zeuzRows as any,
+        locator: iframeId ? `//*[@id='${iframeId}']` : iframeClass ? `//*[contains(@class, '${iframeClass}')]//iframe` : `//iframe[@src='${iframeSrc}']`,
+        locatorName: `xpath_iframe_${iframeId || iframeClass.split(' ')[0] || 'frame'}`,
+      };
+
+      selector.matchCount = 1;
+      addStep(element, 'click' as any, selector, zeuzStep as any);
+      setSelectedElement(element);
+
+      // Auto-open iframe content in a new tab for further capture
+      if (iframeSrc) {
+        try {
+          const tabId = chrome.devtools?.inspectedWindow?.tabId;
+          if (tabId) {
+            chrome.tabs.create({ url: iframeSrc, active: false });
+          }
+        } catch (e) {
+          console.warn('[useCapture] Could not open iframe in new tab:', e);
+        }
+      }
+      return;
+    }
+
+    // ─── Normal element processing ────────────────────────────────────────────
     const actionRec = recommendAction(element);
     const action = actionRec.primary;
-    const stepNumber = stepsRef.current.length + 1;
 
     // Format as ZeuZ step first (to get the locator)
     const zeuzStep = formatAsZeuzStep(element, action, stepNumber, {
