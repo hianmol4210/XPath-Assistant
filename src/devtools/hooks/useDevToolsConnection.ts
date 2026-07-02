@@ -38,6 +38,7 @@ const PICKER_SCRIPT = `
 
   // Track the last element found under cursor (works even for disabled elements)
   var lastHoveredElement = null;
+  var capturedInIframe = false;
 
   function onMove(e) {
     // Hide overlay to detect element underneath (even disabled ones)
@@ -186,6 +187,158 @@ const PICKER_SCRIPT = `
       window.__qaAutomationCleanup();
     }
   }, 1000);
+
+  // ─── Iframe support: inject picker into all accessible iframes ─────────────
+  function injectIntoIframe(iframe) {
+    try {
+      var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!iframeDoc || iframeDoc.__qaPickerInjected) return;
+      iframeDoc.__qaPickerInjected = true;
+
+      var iframeOverlay = iframeDoc.createElement('div');
+      iframeOverlay.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:2px solid #3b82f6;background:rgba(59,130,246,0.1);border-radius:2px;display:none;transition:all 0.05s ease-out;';
+      iframeDoc.documentElement.appendChild(iframeOverlay);
+
+      var iframeLastHovered = null;
+
+      function iframeOnMove(e) {
+        iframeOverlay.style.display = 'none';
+        var el = iframeDoc.elementFromPoint(e.clientX, e.clientY);
+        iframeOverlay.style.display = 'block';
+        if (!el) { iframeOverlay.style.display = 'none'; return; }
+        iframeLastHovered = el;
+        var rect = el.getBoundingClientRect();
+        iframeOverlay.style.top = rect.top + 'px';
+        iframeOverlay.style.left = rect.left + 'px';
+        iframeOverlay.style.width = rect.width + 'px';
+        iframeOverlay.style.height = rect.height + 'px';
+      }
+
+      function iframeOnClick(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        var now = Date.now();
+        if (window.__qaLastCaptureTime && (now - window.__qaLastCaptureTime) < 300) return;
+        window.__qaLastCaptureTime = now;
+
+        var el = iframeLastHovered;
+        if (!el) {
+          iframeOverlay.style.display = 'none';
+          el = iframeDoc.elementFromPoint(e.clientX, e.clientY);
+          iframeOverlay.style.display = 'block';
+        }
+        if (!el) return;
+
+        var attrs = {};
+        for (var i = 0; i < el.attributes.length; i++) {
+          attrs[el.attributes[i].name] = el.attributes[i].value;
+        }
+        var dataAttrs = {};
+        var ariaAttrs = {};
+        Object.keys(attrs).forEach(function(k) {
+          if (k.startsWith('data-')) dataAttrs[k] = attrs[k];
+          if (k.startsWith('aria-')) ariaAttrs[k] = attrs[k];
+        });
+
+        var parent = el.parentElement;
+        var siblings = parent ? Array.from(parent.children) : [];
+        var rect = el.getBoundingClientRect();
+        var style = iframe.contentWindow.getComputedStyle(el);
+
+        var data = {
+          tag: el.tagName.toLowerCase(),
+          text: (el.textContent || '').substring(0, 200),
+          innerText: (el.innerText || '').substring(0, 500),
+          id: el.id || '',
+          name: el.getAttribute('name') || '',
+          classes: Array.from(el.classList),
+          attributes: attrs,
+          dataAttributes: dataAttrs,
+          ariaAttributes: ariaAttrs,
+          hierarchy: {
+            parentTag: parent ? parent.tagName.toLowerCase() : '',
+            parentId: parent ? (parent.id || '') : '',
+            parentClasses: parent ? Array.from(parent.classList) : [],
+            siblingIndex: siblings.indexOf(el),
+            totalSiblings: siblings.length
+          },
+          state: {
+            visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none',
+            enabled: !el.disabled,
+            checked: !!el.checked,
+            selected: !!el.selected
+          },
+          timestamp: Date.now(),
+          _iframe: true,
+          _iframeSrc: iframe.src || '',
+          _iframeId: iframe.id || ''
+        };
+
+        iframeOverlay.style.border = '2px solid #22c55e';
+        iframeOverlay.style.background = 'rgba(34,197,94,0.15)';
+        setTimeout(function() {
+          iframeOverlay.style.border = '2px solid #3b82f6';
+          iframeOverlay.style.background = 'rgba(59,130,246,0.1)';
+        }, 300);
+
+        // Store on TOP window so polling can find it
+        try {
+          window.top.__qaAutomationLastCapture = JSON.parse(JSON.stringify(data));
+        } catch(err) {
+          window.__qaAutomationLastCapture = data;
+        }
+        return false;
+      }
+
+      iframeDoc.addEventListener('mousemove', iframeOnMove, true);
+      iframeDoc.addEventListener('mousedown', iframeOnClick, true);
+      iframeDoc.addEventListener('pointerdown', iframeOnClick, true);
+      iframeDoc.addEventListener('click', iframeOnClick, true);
+
+      console.log('[QA Automation Picker] Injected into iframe:', iframe.src || iframe.id);
+    } catch(e) {
+      // Cross-origin iframe — can't access contentDocument
+      console.log('[QA Automation Picker] Cannot inject into cross-origin iframe:', iframe.src);
+    }
+  }
+
+  // Inject into existing iframes
+  var iframes = document.querySelectorAll('iframe');
+  iframes.forEach(function(iframe) {
+    if (iframe.contentDocument) {
+      injectIntoIframe(iframe);
+    } else {
+      iframe.addEventListener('load', function() { injectIntoIframe(iframe); });
+    }
+  });
+
+  // Watch for new iframes added to the page
+  var iframeObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.tagName === 'IFRAME') {
+          if (node.contentDocument) {
+            injectIntoIframe(node);
+          } else {
+            node.addEventListener('load', function() { injectIntoIframe(node); });
+          }
+        }
+        // Also check children for iframes
+        if (node.querySelectorAll) {
+          node.querySelectorAll('iframe').forEach(function(iframe) {
+            if (iframe.contentDocument) {
+              injectIntoIframe(iframe);
+            } else {
+              iframe.addEventListener('load', function() { injectIntoIframe(iframe); });
+            }
+          });
+        }
+      });
+    });
+  });
+  iframeObserver.observe(document.body, { childList: true, subtree: true });
 
   return '__QA_PICKER_STARTED__';
 })();
@@ -363,13 +516,17 @@ const GET_CAPTURE_SCRIPT = `
   if (window.__qaAutomationHeartbeat !== undefined) {
     window.__qaAutomationHeartbeat = Date.now();
   }
-  if (window.__qaAutomationLastCapture) {
+  // Check both window and window.top for iframe captures
+  var capture = window.__qaAutomationLastCapture || (window.top && window.top.__qaAutomationLastCapture);
+  if (capture) {
     try {
-      var data = JSON.stringify(window.__qaAutomationLastCapture);
+      var data = JSON.stringify(capture);
       window.__qaAutomationLastCapture = null;
+      if (window.top) window.top.__qaAutomationLastCapture = null;
       return data;
     } catch(e) {
       window.__qaAutomationLastCapture = null;
+      if (window.top) window.top.__qaAutomationLastCapture = null;
       return null;
     }
   }
