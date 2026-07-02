@@ -698,56 +698,66 @@ export function useDevToolsConnection(): DevToolsConnection {
     }
   }, []);
 
-  // Inject picker into ALL frames (including cross-origin iframes) using chrome.scripting API
-  const injectIntoAllFrames = useCallback(async (script: string) => {
+  // Send message to content scripts in ALL frames (including iframes)
+  const sendToAllFrames = useCallback(async (messageType: string) => {
     try {
       const tabId = chrome.devtools?.inspectedWindow?.tabId;
       if (!tabId) return;
-      
-      await chrome.scripting.executeScript({
-        target: { tabId, allFrames: true },
-        func: (scriptText: string) => {
-          eval(scriptText);
-        },
-        args: [script],
-      });
+      // Send to all frames in the tab
+      chrome.tabs.sendMessage(tabId, { type: messageType });
     } catch (e) {
-      console.warn('[useCapture] Failed to inject into all frames:', e);
+      console.warn('[useCapture] Failed to send to frames:', e);
     }
   }, []);
 
-  // Start capture: inject picker + start polling
+  // Listen for captured elements from content scripts (iframes)
+  useEffect(() => {
+    const listener = (message: any) => {
+      if (message.type === 'ELEMENT_CAPTURED_FROM_FRAME' && message.payload) {
+        processElement(message.payload as CapturedElement);
+      }
+    };
+    
+    try {
+      chrome.runtime.onMessage.addListener(listener);
+    } catch (e) {}
+
+    return () => {
+      try {
+        chrome.runtime.onMessage.removeListener(listener);
+      } catch (e) {}
+    };
+  }, [processElement]);
+
+  // Start capture: inject picker on top frame + tell content scripts in all frames
   const startCapture = useCallback(async () => {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
     await evalOnPage(PICKER_SCRIPT);
-    // Also inject into all iframes (cross-origin support)
-    await injectIntoAllFrames(PICKER_SCRIPT);
+    await sendToAllFrames('START_CAPTURE');
     startPolling();
-  }, [isConnected, startPolling, injectIntoAllFrames]);
+  }, [isConnected, startPolling, sendToAllFrames]);
 
-  // Start record: inject record picker (pass-through clicks) + start polling
+  // Start record: inject record picker + tell content scripts
   const startRecord = useCallback(async () => {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
     await evalOnPage(RECORD_SCRIPT);
-    // Also inject into all iframes (cross-origin support)
-    await injectIntoAllFrames(RECORD_SCRIPT);
+    await sendToAllFrames('START_RECORD');
     startPolling();
-  }, [isConnected, startPolling, injectIntoAllFrames]);
+  }, [isConnected, startPolling, sendToAllFrames]);
 
-  // Stop capture: remove picker + stop polling
+  // Stop capture: remove picker + tell content scripts
   const stopCapture = useCallback(async () => {
     if (!isCapturingRef.current) return;
     isCapturingRef.current = false;
 
     stopPolling();
     await evalOnPage(STOP_PICKER_SCRIPT);
-    // Also stop in all iframes
-    await injectIntoAllFrames(STOP_PICKER_SCRIPT);
-  }, [stopPolling, injectIntoAllFrames]);
+    await sendToAllFrames('STOP_CAPTURE');
+  }, [stopPolling, sendToAllFrames]);
 
   // Sync with store's captureMode
   const prevModeRef = useRef(captureMode);
