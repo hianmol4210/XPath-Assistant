@@ -127,6 +127,13 @@ function onClick(e: MouseEvent) {
 // --- Start / Stop ---
 function startPicker(recordMode: boolean) {
   if (isCapturing) return;
+  
+  // Wait for DOM to be ready
+  if (!document.documentElement) {
+    document.addEventListener('DOMContentLoaded', () => startPicker(recordMode));
+    return;
+  }
+
   isCapturing = true;
   isRecordMode = recordMode;
 
@@ -199,10 +206,17 @@ function checkAndAutoStart(retries = 3) {
   }
 }
 
-// Check immediately and also after a short delay (for slow-loading iframes)
+// Check immediately and also periodically (for frames that load late)
 checkAndAutoStart();
 setTimeout(() => checkAndAutoStart(), 1000);
 setTimeout(() => checkAndAutoStart(), 3000);
+
+// Keep checking every 2 seconds — handles dynamically created frames
+const periodicCheck = setInterval(() => {
+  if (!isCapturing) {
+    checkAndAutoStart(1);
+  }
+}, 2000);
 
 // Also listen for storage changes (in case capture starts AFTER this frame loaded)
 try {

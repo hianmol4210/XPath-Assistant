@@ -12,7 +12,7 @@
       "matches": ["<all_urls>"],
       "js": ["content.js"],
       "all_frames": true,
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "permissions": ["activeTab", "scripting", "storage"]
