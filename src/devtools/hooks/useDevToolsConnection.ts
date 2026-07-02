@@ -683,37 +683,33 @@ export function useDevToolsConnection(): DevToolsConnection {
     if (pollingRef.current) return;
 
     pollingRef.current = setInterval(async () => {
+      // Global dedup: skip if we just processed something
+      const now = Date.now();
+      if (now - lastCaptureTimestampRef.current < 1000) return;
+
       // Check 1: Top frame capture via eval
       const result = await evalOnPage(GET_CAPTURE_SCRIPT);
       if (result && result !== 'null' && result !== 'undefined') {
         try {
           const element = JSON.parse(result) as CapturedElement;
-          // Dedup: skip if any capture happened within 1 second
-          const now = Date.now();
-          if (now - lastCaptureTimestampRef.current < 1000) return;
-          lastCaptureTimestampRef.current = now;
+          lastCaptureTimestampRef.current = Date.now();
           processElement(element);
-          return;
-        } catch (e) {
-          console.warn('[useCapture] Failed to parse capture data:', e);
-        }
+        } catch (e) {}
+        return; // Found one, don't check storage this tick
       }
 
-      // Check 2: Iframe capture via storage (set by background from content script messages)
+      // Check 2: Iframe capture via storage
       try {
         chrome.storage.local.get(['__qaLastCapturedElement'], (res) => {
           if (res.__qaLastCapturedElement) {
-            const element = res.__qaLastCapturedElement as CapturedElement;
             chrome.storage.local.remove('__qaLastCapturedElement');
-            // Dedup: skip if any capture happened within 1 second
-            const now = Date.now();
-            if (now - lastCaptureTimestampRef.current < 1000) return;
-            lastCaptureTimestampRef.current = now;
-            processElement(element);
+            if (Date.now() - lastCaptureTimestampRef.current < 1000) return;
+            lastCaptureTimestampRef.current = Date.now();
+            processElement(res.__qaLastCapturedElement as CapturedElement);
           }
         });
       } catch (e) {}
-    }, 300); // Check every 300ms
+    }, 300);
   }, [processElement]);
 
   const stopPolling = useCallback(() => {
