@@ -137,6 +137,8 @@ function startPicker(recordMode: boolean) {
   isCapturing = true;
   isRecordMode = recordMode;
 
+  console.log(`[QA Picker] ✅ STARTED in frame: ${window.location.href.substring(0, 80)} | record=${recordMode}`);
+
   overlay = createOverlay();
   if (recordMode) {
     overlay.style.border = '2px solid #ef4444';
@@ -195,15 +197,18 @@ function checkAndAutoStart(retries = 3) {
     // Method 1: Ask background service worker (most reliable for cross-origin frames)
     chrome.runtime.sendMessage({ type: 'IS_CAPTURE_ACTIVE' }, (response) => {
       if (chrome.runtime.lastError) {
+        console.log(`[QA Picker] ⚠️ runtime.sendMessage failed: ${chrome.runtime.lastError.message} | frame: ${window.location.href.substring(0, 60)}`);
         // Fallback to storage
         fallbackStorageCheck(retries);
         return;
       }
+      console.log(`[QA Picker] 📡 Response from background: active=${response?.active}, record=${response?.recordMode} | frame: ${window.location.href.substring(0, 60)}`);
       if (response && response.active && !isCapturing) {
         startPicker(!!response.recordMode);
       }
     });
   } catch (e) {
+    console.log(`[QA Picker] ❌ Exception in checkAndAutoStart: ${e} | frame: ${window.location.href.substring(0, 60)}`);
     fallbackStorageCheck(retries);
   }
 }
