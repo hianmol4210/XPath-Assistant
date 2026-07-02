@@ -773,7 +773,7 @@ export function useDevToolsConnection(): DevToolsConnection {
     startPolling();
   }, [isConnected, startPolling, sendToAllFrames]);
 
-  // Start record: inject record picker + tell content scripts
+  // Start record: tell content scripts only (no eval picker - avoids duplicates)
   const startRecord = useCallback(async () => {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
@@ -783,7 +783,7 @@ export function useDevToolsConnection(): DevToolsConnection {
       chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: true });
     } catch (e) {}
 
-    await evalOnPage(RECORD_SCRIPT);
+    // Only use content scripts for record mode — no eval-based picker
     await sendToAllFrames('START_RECORD');
     startPolling();
   }, [isConnected, startPolling, sendToAllFrames]);
