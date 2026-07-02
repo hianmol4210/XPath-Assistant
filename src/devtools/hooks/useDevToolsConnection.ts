@@ -734,6 +734,11 @@ export function useDevToolsConnection(): DevToolsConnection {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
+    // Set storage FIRST so iframes auto-detect via storage.onChanged
+    try {
+      chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: false });
+    } catch (e) {}
+
     await evalOnPage(PICKER_SCRIPT);
     await sendToAllFrames('START_CAPTURE');
     startPolling();
@@ -743,6 +748,11 @@ export function useDevToolsConnection(): DevToolsConnection {
   const startRecord = useCallback(async () => {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
+
+    // Set storage FIRST so iframes auto-detect via storage.onChanged
+    try {
+      chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: true });
+    } catch (e) {}
 
     await evalOnPage(RECORD_SCRIPT);
     await sendToAllFrames('START_RECORD');

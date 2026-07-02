@@ -182,15 +182,41 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 // Auto-start if capture was already active (handles iframe reloads and navigation)
+// Retry a few times in case storage isn't ready immediately
+function checkAndAutoStart(retries = 3) {
+  try {
+    chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode'], (result) => {
+      if (chrome.runtime.lastError) {
+        if (retries > 0) setTimeout(() => checkAndAutoStart(retries - 1), 500);
+        return;
+      }
+      if (result.__qaCaptureActive && !isCapturing) {
+        startPicker(!!result.__qaRecordMode);
+      }
+    });
+  } catch (e) {
+    // Extension context might be invalid
+  }
+}
+
+// Check immediately and also after a short delay (for slow-loading iframes)
+checkAndAutoStart();
+setTimeout(() => checkAndAutoStart(), 1000);
+setTimeout(() => checkAndAutoStart(), 3000);
+
+// Also listen for storage changes (in case capture starts AFTER this frame loaded)
 try {
-  chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode'], (result) => {
-    if (result.__qaCaptureActive) {
-      startPicker(!!result.__qaRecordMode);
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.__qaCaptureActive) {
+      if (changes.__qaCaptureActive.newValue) {
+        const recordMode = changes.__qaRecordMode ? !!changes.__qaRecordMode.newValue : false;
+        if (!isCapturing) startPicker(recordMode);
+      } else {
+        stopPicker();
+      }
     }
   });
-} catch (e) {
-  // storage might not be available
-}
+} catch (e) {}
 
 // Auto-cleanup if extension context invalidates
 try {
