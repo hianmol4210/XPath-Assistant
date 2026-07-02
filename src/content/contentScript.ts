@@ -166,21 +166,35 @@ function stopPicker() {
 // --- Message Listener ---
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'START_CAPTURE') {
+    chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: false });
     startPicker(false);
     sendResponse({ ok: true });
   } else if (message.type === 'START_RECORD') {
+    chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: true });
     startPicker(true);
     sendResponse({ ok: true });
   } else if (message.type === 'STOP_CAPTURE') {
+    chrome.storage.local.set({ __qaCaptureActive: false, __qaRecordMode: false });
     stopPicker();
     sendResponse({ ok: true });
   }
   return false;
 });
 
+// Auto-start if capture was already active (handles iframe reloads and navigation)
+try {
+  chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode'], (result) => {
+    if (result.__qaCaptureActive) {
+      startPicker(!!result.__qaRecordMode);
+    }
+  });
+} catch (e) {
+  // storage might not be available
+}
+
 // Auto-cleanup if extension context invalidates
 try {
-  chrome.runtime.id; // Will throw if context is invalid
+  chrome.runtime.id;
 } catch (e) {
   stopPicker();
 }

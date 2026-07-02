@@ -757,6 +757,10 @@ export function useDevToolsConnection(): DevToolsConnection {
     stopPolling();
     await evalOnPage(STOP_PICKER_SCRIPT);
     await sendToAllFrames('STOP_CAPTURE');
+    // Clear persisted state so new frames don't auto-start
+    try {
+      chrome.storage.local.set({ __qaCaptureActive: false, __qaRecordMode: false });
+    } catch (e) {}
   }, [stopPolling, sendToAllFrames]);
 
   // Sync with store's captureMode
