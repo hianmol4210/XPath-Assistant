@@ -191,6 +191,142 @@ const PICKER_SCRIPT = `
 })();
 `;
 
+// Record mode: captures XPath AND lets click pass through (no preventDefault)
+const RECORD_SCRIPT = `
+(function() {
+  if (window.__qaAutomationPicker) {
+    return '__QA_PICKER_ALREADY_ACTIVE__';
+  }
+  window.__qaAutomationPicker = true;
+  window.__qaAutomationRecordMode = true;
+
+  var overlay = document.createElement('div');
+  overlay.id = '__qa-automation-picker-overlay__';
+  overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:2px solid #ef4444;background:rgba(239,68,68,0.08);border-radius:2px;display:none;transition:all 0.05s ease-out;';
+  document.documentElement.appendChild(overlay);
+
+  var lastHoveredElement = null;
+
+  function onMove(e) {
+    overlay.style.display = 'none';
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    overlay.style.display = 'block';
+    if (!el) { overlay.style.display = 'none'; return; }
+    lastHoveredElement = el;
+    var rect = el.getBoundingClientRect();
+    overlay.style.top = rect.top + 'px';
+    overlay.style.left = rect.left + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+  }
+
+  function onClick(e) {
+    // NO preventDefault, NO stopPropagation — click passes through to the page!
+    var now = Date.now();
+    if (window.__qaLastCaptureTime && (now - window.__qaLastCaptureTime) < 300) return;
+    window.__qaLastCaptureTime = now;
+
+    var el = lastHoveredElement;
+    if (!el) {
+      overlay.style.display = 'none';
+      el = document.elementFromPoint(e.clientX, e.clientY);
+      overlay.style.display = 'block';
+    }
+    if (!el) return;
+
+    var attrs = {};
+    for (var i = 0; i < el.attributes.length; i++) {
+      attrs[el.attributes[i].name] = el.attributes[i].value;
+    }
+    var dataAttrs = {};
+    var ariaAttrs = {};
+    Object.keys(attrs).forEach(function(k) {
+      if (k.startsWith('data-')) dataAttrs[k] = attrs[k];
+      if (k.startsWith('aria-')) ariaAttrs[k] = attrs[k];
+    });
+
+    var parent = el.parentElement;
+    var siblings = parent ? Array.from(parent.children) : [];
+    var rect = el.getBoundingClientRect();
+    var style = window.getComputedStyle(el);
+
+    var data = {
+      tag: el.tagName.toLowerCase(),
+      text: (el.textContent || '').substring(0, 200),
+      innerText: (el.innerText || '').substring(0, 500),
+      id: el.id || '',
+      name: el.getAttribute('name') || '',
+      classes: Array.from(el.classList),
+      attributes: attrs,
+      dataAttributes: dataAttrs,
+      ariaAttributes: ariaAttrs,
+      hierarchy: {
+        parentTag: parent ? parent.tagName.toLowerCase() : '',
+        parentId: parent ? (parent.id || '') : '',
+        parentClasses: parent ? Array.from(parent.classList) : [],
+        siblingIndex: siblings.indexOf(el),
+        totalSiblings: siblings.length
+      },
+      state: {
+        visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none',
+        enabled: !el.disabled,
+        checked: !!el.checked,
+        selected: !!el.selected
+      },
+      timestamp: Date.now()
+    };
+
+    // Flash green briefly
+    overlay.style.border = '2px solid #22c55e';
+    overlay.style.background = 'rgba(34,197,94,0.15)';
+    setTimeout(function() {
+      overlay.style.border = '2px solid #ef4444';
+      overlay.style.background = 'rgba(239,68,68,0.08)';
+    }, 300);
+
+    try {
+      window.__qaAutomationLastCapture = JSON.parse(JSON.stringify(data));
+    } catch(err) {
+      window.__qaAutomationLastCapture = data;
+    }
+    // Don't return false — let the event propagate naturally
+  }
+
+  // Use click event only (not mousedown) so we capture AFTER the action happens
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('click', onClick, false);
+
+  console.log('[QA Automation Record] Started - click pass-through + capture mode');
+
+  window.__qaAutomationCleanup = function() {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('click', onClick, false);
+    overlay.remove();
+    delete window.__qaAutomationPicker;
+    delete window.__qaAutomationRecordMode;
+    delete window.__qaAutomationCleanup;
+    delete window.__qaAutomationPause;
+    delete window.__qaAutomationResume;
+    delete window.__qaAutomationLastCapture;
+    if (window.__qaAutomationHeartbeatTimer) {
+      clearInterval(window.__qaAutomationHeartbeatTimer);
+    }
+    delete window.__qaAutomationHeartbeat;
+    delete window.__qaAutomationHeartbeatTimer;
+  };
+
+  window.__qaAutomationHeartbeat = Date.now();
+  window.__qaAutomationHeartbeatTimer = setInterval(function() {
+    if (Date.now() - window.__qaAutomationHeartbeat > 3000) {
+      console.log('[QA Automation Record] No heartbeat - cleaning up');
+      window.__qaAutomationCleanup();
+    }
+  }, 1000);
+
+  return '__QA_RECORD_STARTED__';
+})();
+`;
+
 const STOP_PICKER_SCRIPT = `
 (function() {
   if (window.__qaAutomationCleanup) {
@@ -341,6 +477,15 @@ export function useDevToolsConnection(): DevToolsConnection {
     startPolling();
   }, [isConnected, startPolling]);
 
+  // Start record: inject record picker (pass-through clicks) + start polling
+  const startRecord = useCallback(async () => {
+    if (!isConnected || isCapturingRef.current) return;
+    isCapturingRef.current = true;
+
+    await evalOnPage(RECORD_SCRIPT);
+    startPolling();
+  }, [isConnected, startPolling]);
+
   // Stop capture: remove picker + stop polling
   const stopCapture = useCallback(async () => {
     if (!isCapturingRef.current) return;
@@ -359,22 +504,21 @@ export function useDevToolsConnection(): DevToolsConnection {
 
     if (captureMode === 'capturing' && prev === 'idle') {
       startCapture();
-    } else if (captureMode === 'idle' && (prev === 'capturing' || prev === 'paused')) {
+    } else if (captureMode === 'recording' && prev === 'idle') {
+      // Record mode: capture XPath + let clicks pass through
+      startRecord();
+    } else if (captureMode === 'idle' && (prev === 'capturing' || prev === 'paused' || prev === 'recording')) {
       stopCapture();
     } else if (captureMode === 'paused' && prev === 'capturing') {
-      // Pause: remove picker listeners so clicks work normally on the page
-      // Keep polling alive (just for heartbeat) but don't process captures
       evalOnPage(PAUSE_PICKER_SCRIPT);
     } else if (captureMode === 'capturing' && prev === 'paused') {
-      // Resume: try to resume, if picker was cleaned up, re-inject it
       evalOnPage(RESUME_PICKER_SCRIPT).then((result) => {
         if (result === '__QA_PICKER_NOT_ACTIVE__') {
-          // Picker was cleaned up, re-inject
           evalOnPage(PICKER_SCRIPT);
         }
       });
     }
-  }, [captureMode, startCapture, stopCapture, startPolling, stopPolling]);
+  }, [captureMode, startCapture, startRecord, stopCapture, startPolling, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {
