@@ -731,24 +731,8 @@ export function useDevToolsConnection(): DevToolsConnection {
     }
   }, []);
 
-  // Listen for captured elements from content scripts (iframes)
-  useEffect(() => {
-    const listener = (message: any) => {
-      if (message.type === 'ELEMENT_CAPTURED_FROM_FRAME' && message.payload) {
-        processElement(message.payload as CapturedElement);
-      }
-    };
-    
-    try {
-      chrome.runtime.onMessage.addListener(listener);
-    } catch (e) {}
-
-    return () => {
-      try {
-        chrome.runtime.onMessage.removeListener(listener);
-      } catch (e) {}
-    };
-  }, [processElement]);
+  // NOTE: Iframe captures are picked up via storage polling (set by background).
+  // No direct onMessage listener needed — it caused duplicates.
 
   // Start capture: inject picker on top frame + tell content scripts in all frames
   const startCapture = useCallback(async () => {
