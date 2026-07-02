@@ -20,6 +20,8 @@ import { ActionType } from './actionRecommender';
 export type ZeuzParameterType =
   | 'element parameter'
   | 'parent parameter'
+  | 'save parameter'
+  | 'target parameter'
   | 'selenium action'
   | 'optional option';
 
@@ -113,6 +115,10 @@ function getActionRow(action: ActionType): ZeuzRow {
       return { field: 'wait', type: 'selenium action', value: '10' };
     case 'wait-disable':
       return { field: 'wait disable', type: 'selenium action', value: '10' };
+    case 'save-attribute':
+      return { field: 'save attribute', type: 'selenium action', value: 'save attribute' };
+    case 'save-attribute-list':
+      return { field: 'save attribute values in list', type: 'selenium action', value: '%|list_variable_name|%' };
     case 'verify-exists':
       return { field: 'verify', type: 'selenium action', value: 'element exists' };
     case 'verify-text':
@@ -413,14 +419,30 @@ export function formatAsZeuzStep(
     }
   }
 
+  // ─── Save parameters (for save-attribute and save-attribute-list) ──────────
+
+  if (action === 'save-attribute') {
+    // Add save parameter row with auto-generated variable name
+    const varName = generateLocatorName(element).replace('xpath_', '') + '_value';
+    rows.push({ field: 'text', type: 'save parameter' as any, value: varName });
+  }
+
+  if (action === 'save-attribute-list') {
+    // Add target parameter for list extraction
+    rows.push({ field: 'attributes', type: 'target parameter' as any, value: 'tag="td", return="text"' });
+  }
+
   // ─── Optional options ──────────────────────────────────────────────────────
 
   if (action === 'type-text') {
     rows.push({ field: 'clear', type: 'optional option', value: 'True' });
   }
 
-  const waitTime = settings?.defaultWait ?? 5;
-  rows.push({ field: 'wait', type: 'optional option', value: String(waitTime) });
+  // Don't add wait for save actions
+  if (action !== 'save-attribute' && action !== 'save-attribute-list') {
+    const waitTime = settings?.defaultWait ?? 5;
+    rows.push({ field: 'wait', type: 'optional option', value: String(waitTime) });
+  }
 
   // ─── Selenium action ───────────────────────────────────────────────────────
 

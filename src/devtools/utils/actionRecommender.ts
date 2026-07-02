@@ -31,6 +31,8 @@ export type ActionType =
   | 'verify-exists'
   | 'verify-text'
   | 'verify-visible'
+  | 'save-attribute'
+  | 'save-attribute-list'
   | 'navigate';
 
 export interface NextStepSuggestion {
@@ -65,6 +67,8 @@ const ALTERNATIVES: Record<ActionType, ActionType[]> = {
   'wait-until-visible': ['wait-for-element', 'verify-visible'],
   'wait-until-hidden': ['wait-for-element', 'verify-exists'],
   'wait-disable': ['wait-for-element', 'wait-until-visible', 'verify-exists'],
+  'save-attribute': ['save-attribute-list', 'verify-text', 'click'],
+  'save-attribute-list': ['save-attribute', 'verify-text', 'click'],
   'verify-exists': ['verify-visible', 'verify-text'],
   'verify-text': ['verify-exists', 'verify-visible'],
   'verify-visible': ['verify-exists', 'verify-text'],
