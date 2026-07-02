@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStore, Step } from '../../store';
 import { ActionType } from '../../utils/actionRecommender';
 import { copyZeuzStep, formatAsZeuzStep } from '../../utils/zeuzFormatter';
+import { buildSaveAttributeRows, buildSaveAttributeListRows } from '../../utils/zeuzStoreBuilder';
 
 interface StepRowProps {
   step: Step;
@@ -146,9 +147,25 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
   const handleActionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     e.stopPropagation();
     const newAction = e.target.value as ActionType;
-    // Regenerate ZeuZ step with new action
-    const newZeuzStep = formatAsZeuzStep(step.element, newAction, step.stepNumber);
-    updateStep(step.id, { action: newAction, zeuzStep: newZeuzStep });
+
+    // For save actions: use the isolated Store Builder (does NOT affect other actions)
+    if (newAction === 'save-attribute' || newAction === 'save-attribute-list') {
+      const storeRows = newAction === 'save-attribute'
+        ? buildSaveAttributeRows(step.element as any)
+        : buildSaveAttributeListRows(step.element as any);
+
+      // Create a zeuzStep-compatible object with the store builder's rows
+      const storeZeuzStep = {
+        ...step.zeuzStep,
+        title: `#${step.stepNumber} ${newAction === 'save-attribute' ? 'Save attribute of' : 'Save attribute values in list from'} ${step.element.text?.trim().substring(0, 30) || step.element.tag}`,
+        rows: storeRows as any,
+      };
+      updateStep(step.id, { action: newAction, zeuzStep: storeZeuzStep });
+    } else {
+      // All other actions: use existing formatter (unchanged)
+      const newZeuzStep = formatAsZeuzStep(step.element, newAction, step.stepNumber);
+      updateStep(step.id, { action: newAction, zeuzStep: newZeuzStep });
+    }
   };
 
   const handleMouseEnter = () => {

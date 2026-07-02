@@ -40,6 +40,26 @@ function collectElementData(el: Element) {
   const rect = el.getBoundingClientRect();
   const style = window.getComputedStyle(el);
 
+  // Collect ancestors (up to 5 levels) for Smart Store Builder
+  const ancestors: Array<{ tag: string; id: string; classes: string[] }> = [];
+  let ancestor = el.parentElement;
+  for (let i = 0; i < 5 && ancestor; i++) {
+    ancestors.push({
+      tag: ancestor.tagName.toLowerCase(),
+      id: ancestor.id || '',
+      classes: Array.from(ancestor.classList),
+    });
+    ancestor = ancestor.parentElement;
+  }
+
+  // Collect direct children tags
+  const childTags: string[] = Array.from(el.children).map(c => c.tagName.toLowerCase());
+
+  // Same-tag sibling info (position among siblings of same tag type)
+  const sameTagSiblings = siblings.filter(s => s.tagName === el.tagName);
+  const sameTagSiblingIndex = sameTagSiblings.indexOf(el);
+  const sameTagSiblingCount = sameTagSiblings.length;
+
   return {
     tag: el.tagName.toLowerCase(),
     text: (el.textContent || '').substring(0, 200),
@@ -66,6 +86,11 @@ function collectElementData(el: Element) {
     timestamp: Date.now(),
     _isInIframe: window !== window.top,
     _frameUrl: window.location.href,
+    // --- Optional enriched data for Smart Store Builder (backward-compatible) ---
+    _ancestors: ancestors,
+    _childTags: childTags,
+    _sameTagSiblingIndex: sameTagSiblingIndex,
+    _sameTagSiblingCount: sameTagSiblingCount,
   };
 }
 
