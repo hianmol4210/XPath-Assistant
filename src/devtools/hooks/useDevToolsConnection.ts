@@ -674,6 +674,9 @@ export function useDevToolsConnection(): DevToolsConnection {
     setSelectedElement(element);
   }, [addStep, setSelectedElement]);
 
+  // Deduplication: track last capture timestamp to prevent double captures
+  const lastCaptureTimestampRef = useRef(0);
+
   // Poll for captured elements (from both top-frame eval AND iframe content scripts via storage)
   const startPolling = useCallback(() => {
     if (pollingRef.current) return;
@@ -684,6 +687,9 @@ export function useDevToolsConnection(): DevToolsConnection {
       if (result && result !== 'null' && result !== 'undefined') {
         try {
           const element = JSON.parse(result) as CapturedElement;
+          // Dedup: skip if same timestamp as last capture (within 500ms)
+          if (element.timestamp && Math.abs(element.timestamp - lastCaptureTimestampRef.current) < 500) return;
+          lastCaptureTimestampRef.current = element.timestamp || Date.now();
           processElement(element);
           return; // Don't double-process
         } catch (e) {
@@ -697,6 +703,9 @@ export function useDevToolsConnection(): DevToolsConnection {
           if (res.__qaLastCapturedElement) {
             const element = res.__qaLastCapturedElement as CapturedElement;
             chrome.storage.local.remove('__qaLastCapturedElement');
+            // Dedup: skip if same timestamp as last capture (within 500ms)
+            if (element.timestamp && Math.abs(element.timestamp - lastCaptureTimestampRef.current) < 500) return;
+            lastCaptureTimestampRef.current = element.timestamp || Date.now();
             processElement(element);
           }
         });
