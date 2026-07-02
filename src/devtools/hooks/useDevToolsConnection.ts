@@ -126,9 +126,14 @@ const PICKER_SCRIPT = `
       overlay.style.background = 'rgba(59,130,246,0.1)';
     }, 300);
 
-    // Store the data globally so the DevTools eval can retrieve it
+    // Store on TOP window via postMessage (works cross-origin)
     try {
-      window.__qaAutomationLastCapture = JSON.parse(JSON.stringify(data));
+      var msg = { __qaCapture: true, data: JSON.parse(JSON.stringify(data)) };
+      if (window === window.top) {
+        window.__qaAutomationLastCapture = msg.data;
+      } else {
+        window.top.postMessage(msg, '*');
+      }
     } catch(err) {
       window.__qaAutomationLastCapture = data;
     }
@@ -139,6 +144,15 @@ const PICKER_SCRIPT = `
   document.addEventListener('mousedown', onClick, true);
   document.addEventListener('pointerdown', onClick, true);
   document.addEventListener('click', onClick, true);
+
+  // Listen for captures from iframes via postMessage
+  if (window === window.top) {
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.__qaCapture) {
+        window.__qaAutomationLastCapture = e.data.data;
+      }
+    });
+  }
 
   console.log('[QA Automation Picker] Started - mousedown/pointerdown/click listeners active');
 
@@ -437,8 +451,14 @@ const RECORD_SCRIPT = `
       overlay.style.background = 'rgba(239,68,68,0.08)';
     }, 300);
 
+    // Store on TOP window via postMessage (works cross-origin for iframes)
     try {
-      window.__qaAutomationLastCapture = JSON.parse(JSON.stringify(data));
+      var msg = { __qaCapture: true, data: JSON.parse(JSON.stringify(data)) };
+      if (window === window.top) {
+        window.__qaAutomationLastCapture = msg.data;
+      } else {
+        window.top.postMessage(msg, '*');
+      }
     } catch(err) {
       window.__qaAutomationLastCapture = data;
     }
@@ -448,6 +468,15 @@ const RECORD_SCRIPT = `
   // Use click event only (not mousedown) so we capture AFTER the action happens
   document.addEventListener('mousemove', onMove, true);
   document.addEventListener('click', onClick, false);
+
+  // Listen for captures from iframes via postMessage
+  if (window === window.top) {
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.__qaCapture) {
+        window.__qaAutomationLastCapture = e.data.data;
+      }
+    });
+  }
 
   console.log('[QA Automation Record] Started - click pass-through + capture mode');
 
@@ -516,17 +545,13 @@ const GET_CAPTURE_SCRIPT = `
   if (window.__qaAutomationHeartbeat !== undefined) {
     window.__qaAutomationHeartbeat = Date.now();
   }
-  // Check both window and window.top for iframe captures
-  var capture = window.__qaAutomationLastCapture || (window.top && window.top.__qaAutomationLastCapture);
-  if (capture) {
+  if (window.__qaAutomationLastCapture) {
     try {
-      var data = JSON.stringify(capture);
+      var data = JSON.stringify(window.__qaAutomationLastCapture);
       window.__qaAutomationLastCapture = null;
-      if (window.top) window.top.__qaAutomationLastCapture = null;
       return data;
     } catch(e) {
       window.__qaAutomationLastCapture = null;
-      if (window.top) window.top.__qaAutomationLastCapture = null;
       return null;
     }
   }
@@ -625,14 +650,34 @@ export function useDevToolsConnection(): DevToolsConnection {
     }
   }, []);
 
+  // Inject picker into ALL frames (including cross-origin iframes) using chrome.scripting API
+  const injectIntoAllFrames = useCallback(async (script: string) => {
+    try {
+      const tabId = chrome.devtools?.inspectedWindow?.tabId;
+      if (!tabId) return;
+      
+      await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: (scriptText: string) => {
+          eval(scriptText);
+        },
+        args: [script],
+      });
+    } catch (e) {
+      console.warn('[useCapture] Failed to inject into all frames:', e);
+    }
+  }, []);
+
   // Start capture: inject picker + start polling
   const startCapture = useCallback(async () => {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
     await evalOnPage(PICKER_SCRIPT);
+    // Also inject into all iframes (cross-origin support)
+    await injectIntoAllFrames(PICKER_SCRIPT);
     startPolling();
-  }, [isConnected, startPolling]);
+  }, [isConnected, startPolling, injectIntoAllFrames]);
 
   // Start record: inject record picker (pass-through clicks) + start polling
   const startRecord = useCallback(async () => {
@@ -640,8 +685,10 @@ export function useDevToolsConnection(): DevToolsConnection {
     isCapturingRef.current = true;
 
     await evalOnPage(RECORD_SCRIPT);
+    // Also inject into all iframes (cross-origin support)
+    await injectIntoAllFrames(RECORD_SCRIPT);
     startPolling();
-  }, [isConnected, startPolling]);
+  }, [isConnected, startPolling, injectIntoAllFrames]);
 
   // Stop capture: remove picker + stop polling
   const stopCapture = useCallback(async () => {
@@ -650,7 +697,9 @@ export function useDevToolsConnection(): DevToolsConnection {
 
     stopPolling();
     await evalOnPage(STOP_PICKER_SCRIPT);
-  }, [stopPolling]);
+    // Also stop in all iframes
+    await injectIntoAllFrames(STOP_PICKER_SCRIPT);
+  }, [stopPolling, injectIntoAllFrames]);
 
   // Sync with store's captureMode
   const prevModeRef = useRef(captureMode);
