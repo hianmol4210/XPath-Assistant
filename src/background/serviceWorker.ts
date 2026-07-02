@@ -294,7 +294,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   // Forward ELEMENT_CAPTURED_FROM_FRAME to DevTools panel if needed
   if (message.type === 'ELEMENT_CAPTURED_FROM_FRAME') {
-    // This is handled by the DevTools panel's onMessage listener directly
+    // Store in chrome.storage so the DevTools panel can poll for it
+    chrome.storage.local.set({ __qaLastCapturedElement: message.payload });
+    sendResponse({ ok: true });
     return false;
   }
 });

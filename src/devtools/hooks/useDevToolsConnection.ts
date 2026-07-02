@@ -674,20 +674,33 @@ export function useDevToolsConnection(): DevToolsConnection {
     setSelectedElement(element);
   }, [addStep, setSelectedElement]);
 
-  // Poll for captured elements
+  // Poll for captured elements (from both top-frame eval AND iframe content scripts via storage)
   const startPolling = useCallback(() => {
     if (pollingRef.current) return;
 
     pollingRef.current = setInterval(async () => {
+      // Check 1: Top frame capture via eval
       const result = await evalOnPage(GET_CAPTURE_SCRIPT);
       if (result && result !== 'null' && result !== 'undefined') {
         try {
           const element = JSON.parse(result) as CapturedElement;
           processElement(element);
+          return; // Don't double-process
         } catch (e) {
-          console.warn('[useCapture] Failed to parse capture data:', result?.substring(0, 100), e);
+          console.warn('[useCapture] Failed to parse capture data:', e);
         }
       }
+
+      // Check 2: Iframe capture via storage (set by background from content script messages)
+      try {
+        chrome.storage.local.get(['__qaLastCapturedElement'], (res) => {
+          if (res.__qaLastCapturedElement) {
+            const element = res.__qaLastCapturedElement as CapturedElement;
+            chrome.storage.local.remove('__qaLastCapturedElement');
+            processElement(element);
+          }
+        });
+      } catch (e) {}
     }, 300); // Check every 300ms
   }, [processElement]);
 
