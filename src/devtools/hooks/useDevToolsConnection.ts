@@ -674,21 +674,26 @@ export function useDevToolsConnection(): DevToolsConnection {
       defaultWait: settingsRef.current.defaultWait,
     });
 
-    // Evaluate match count using the LOCATOR xpath (the one shown in the UI)
-    // Use JSON.stringify to safely embed the xpath string without quote issues
-    const xpathJson = JSON.stringify(zeuzStep.locator);
-    const countScript = `
-      (function() {
-        try {
-          var xpath = ${xpathJson};
-          var result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-          return result.snapshotLength;
-        } catch(e) { return -1; }
-      })();
-    `;
-    const countResult = await evalOnPage(countScript);
-    const matchCount = countResult ? parseInt(String(countResult), 10) : -1;
-    selector.matchCount = isNaN(matchCount) ? -1 : matchCount;
+    // Use match count from content script (evaluated on the actual page)
+    const smartMatchCount = (element as any)._smartXpathMatchCount;
+    if (typeof smartMatchCount === 'number' && smartMatchCount >= 0) {
+      selector.matchCount = smartMatchCount;
+    } else {
+      // Fallback: try evalOnPage
+      const xpathJson = JSON.stringify(zeuzStep.locator);
+      const countScript = `
+        (function() {
+          try {
+            var xpath = ${xpathJson};
+            var result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            return result.snapshotLength;
+          } catch(e) { return -1; }
+        })();
+      `;
+      const countResult = await evalOnPage(countScript);
+      const matchCount = countResult ? parseInt(String(countResult), 10) : -1;
+      selector.matchCount = isNaN(matchCount) ? -1 : matchCount;
+    }
 
     addStep(element, action, selector, zeuzStep);
     setSelectedElement(element);

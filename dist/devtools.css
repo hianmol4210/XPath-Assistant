@@ -352,9 +352,6 @@
   .cursor-pointer {
     cursor: pointer;
   }
-  .cursor-text {
-    cursor: text;
-  }
   .resize {
     resize: both;
   }

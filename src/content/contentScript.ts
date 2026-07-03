@@ -256,6 +256,10 @@ function collectElementData(el: Element) {
     _sameTagSiblingIndex: sameTagSiblingIndex,
     _sameTagSiblingCount: sameTagSiblingCount,
     _smartXpath: generateSmartXpath(el),
+    _smartXpathMatchCount: (() => {
+      const xpath = generateSmartXpath(el);
+      return countMatches(xpath);
+    })(),
   };
 }
 
