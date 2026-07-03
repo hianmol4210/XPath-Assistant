@@ -22,6 +22,170 @@ function createOverlay(): HTMLDivElement {
   return el;
 }
 
+// --- Smart XPath Generator (runs on the live page, tests uniqueness) ---
+function isDynamicAttr(value: string): boolean {
+  if (!value) return true;
+  if (/[0-9a-f]{8}-[0-9a-f]{4}/i.test(value)) return true;
+  if (/^_ng|^cdk-|^mat-|^mdc-|^react-|^:r/.test(value)) return true;
+  if (/[-_]\d+$/.test(value) || /^\d+[-_]/.test(value)) return true;
+  if (/\d+-\d+/.test(value)) return true;
+  if (value.length <= 2) return true;
+  return false;
+}
+
+function countMatches(xpath: string): number {
+  try {
+    const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    return result.snapshotLength;
+  } catch { return -1; }
+}
+
+function generateSmartXpath(el: Element): string {
+  const tag = el.tagName.toLowerCase();
+  const candidates: string[] = [];
+
+  // Strategy 1: ID (if stable)
+  if (el.id && !isDynamicAttr(el.id)) {
+    const xpath = `//*[@id='${el.id}']`;
+    if (countMatches(xpath) === 1) return xpath;
+  }
+
+  // Strategy 2: aria-label
+  const ariaLabel = el.getAttribute('aria-label');
+  if (ariaLabel && !isDynamicAttr(ariaLabel)) {
+    const xpath = `//${tag}[@aria-label='${ariaLabel}']`;
+    if (countMatches(xpath) === 1) return xpath;
+    candidates.push(xpath);
+  }
+
+  // Strategy 3: placeholder
+  const placeholder = el.getAttribute('placeholder');
+  if (placeholder) {
+    const xpath = `//${tag}[@placeholder='${placeholder}']`;
+    if (countMatches(xpath) === 1) return xpath;
+    candidates.push(xpath);
+  }
+
+  // Strategy 4: name
+  const name = el.getAttribute('name');
+  if (name && !isDynamicAttr(name)) {
+    const xpath = `//${tag}[@name='${name}']`;
+    if (countMatches(xpath) === 1) return xpath;
+    candidates.push(xpath);
+  }
+
+  // Strategy 5: formcontrolname (Angular)
+  const fcn = el.getAttribute('formcontrolname');
+  if (fcn && !isDynamicAttr(fcn)) {
+    const xpath = `//${tag}[@formcontrolname='${fcn}']`;
+    if (countMatches(xpath) === 1) return xpath;
+    candidates.push(xpath);
+  }
+
+  // Strategy 6: data-testid
+  const testId = el.getAttribute('data-testid');
+  if (testId && !isDynamicAttr(testId)) {
+    const xpath = `//*[@data-testid='${testId}']`;
+    if (countMatches(xpath) === 1) return xpath;
+  }
+
+  // Strategy 7: Text content (short, direct text)
+  const directText = (el.textContent || '').trim();
+  if (directText && directText.length <= 60 && !directText.includes('\n')) {
+    const xpath = `//${tag}[normalize-space(.)='${directText}']`;
+    if (countMatches(xpath) === 1) return xpath;
+    // Try with parent context
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const parentClasses = Array.from(parentEl.classList).filter(c => !isDynamicAttr(c) && c.length > 3);
+      if (parentClasses.length > 0) {
+        const xpath2 = `//*[contains(@class,'${parentClasses[0]}')]//${tag}[normalize-space(.)='${directText}']`;
+        if (countMatches(xpath2) === 1) return xpath2;
+      }
+    }
+    candidates.push(xpath);
+  }
+
+  // Strategy 8: Stable class + text
+  const stableClasses = Array.from(el.classList).filter(c => !isDynamicAttr(c) && c.length > 3);
+  if (stableClasses.length > 0 && directText && directText.length <= 60) {
+    const xpath = `//${tag}[contains(@class,'${stableClasses[0]}') and normalize-space(.)='${directText}']`;
+    if (countMatches(xpath) === 1) return xpath;
+    candidates.push(xpath);
+  }
+
+  // Strategy 9: Stable class + parent with stable class
+  if (stableClasses.length > 0) {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const parentStable = Array.from(parentEl.classList).filter(c => !isDynamicAttr(c) && c.length > 3);
+      if (parentStable.length > 0) {
+        const xpath = `//*[contains(@class,'${parentStable[0]}')]//${tag}[contains(@class,'${stableClasses[0]}')]`;
+        if (countMatches(xpath) === 1) return xpath;
+        candidates.push(xpath);
+      }
+    }
+  }
+
+  // Strategy 10: Sibling text relationship (preceding sibling with unique text)
+  const prevSibling = el.previousElementSibling;
+  if (prevSibling) {
+    const sibText = (prevSibling.textContent || '').trim();
+    if (sibText && sibText.length <= 40 && sibText.length > 1) {
+      const sibTag = prevSibling.tagName.toLowerCase();
+      const xpath = `//${sibTag}[normalize-space(.)='${sibText}']/following-sibling::${tag}`;
+      if (countMatches(xpath) === 1) return xpath;
+      // Try with index [1]
+      const xpath2 = `(//${sibTag}[normalize-space(.)='${sibText}']/following-sibling::${tag})[1]`;
+      if (countMatches(xpath2) === 1) return xpath2;
+    }
+  }
+
+  // Strategy 11: Ancestor with ID + descendant
+  let anc = el.parentElement;
+  for (let i = 0; i < 5 && anc; i++) {
+    if (anc.id && !isDynamicAttr(anc.id)) {
+      if (stableClasses.length > 0) {
+        const xpath = `//*[@id='${anc.id}']//${tag}[contains(@class,'${stableClasses[0]}')]`;
+        if (countMatches(xpath) === 1) return xpath;
+      }
+      if (directText && directText.length <= 60) {
+        const xpath = `//*[@id='${anc.id}']//${tag}[normalize-space(.)='${directText}']`;
+        if (countMatches(xpath) === 1) return xpath;
+      }
+      break;
+    }
+    anc = anc.parentElement;
+  }
+
+  // Strategy 12: Ancestor with stable class + descendant
+  anc = el.parentElement;
+  for (let i = 0; i < 5 && anc; i++) {
+    const ancClasses = Array.from(anc.classList).filter(c => !isDynamicAttr(c) && c.length > 3);
+    if (ancClasses.length > 0) {
+      if (directText && directText.length <= 60) {
+        const xpath = `//*[contains(@class,'${ancClasses[0]}')]//${tag}[normalize-space(.)='${directText}']`;
+        if (countMatches(xpath) === 1) return xpath;
+      }
+      if (stableClasses.length > 0) {
+        const xpath = `//*[contains(@class,'${ancClasses[0]}')]//${tag}[contains(@class,'${stableClasses[0]}')]`;
+        if (countMatches(xpath) === 1) return xpath;
+      }
+    }
+    anc = anc.parentElement;
+  }
+
+  // Fallback: use the best candidate (first one found) even if not unique
+  if (candidates.length > 0) return candidates[0];
+
+  // Last resort: tag with class
+  if (stableClasses.length > 0) {
+    return `//${tag}[contains(@class,'${stableClasses[0]}')]`;
+  }
+
+  return `//${tag}`;
+}
+
 // --- Element Data Collection ---
 function collectElementData(el: Element) {
   const attrs: Record<string, string> = {};
@@ -91,6 +255,7 @@ function collectElementData(el: Element) {
     _childTags: childTags,
     _sameTagSiblingIndex: sameTagSiblingIndex,
     _sameTagSiblingCount: sameTagSiblingCount,
+    _smartXpath: generateSmartXpath(el),
   };
 }
 

@@ -229,6 +229,13 @@ function generateLocatorName(element: CapturedElement): string {
  * Adds parent context for complex elements.
  */
 function generateLocator(element: CapturedElement): string {
+  // Use smart XPath from content script if available (generated on live DOM with uniqueness check)
+  const smartXpath = (element as any)._smartXpath;
+  if (smartXpath && typeof smartXpath === 'string' && smartXpath.length > 3) {
+    return smartXpath;
+  }
+
+  // Fallback: generate from captured data (for eval-based captures without _smartXpath)
   const conditions: string[] = [];
 
   // Priority 1: aria-label (very stable)
