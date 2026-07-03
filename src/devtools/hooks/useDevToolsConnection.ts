@@ -752,7 +752,7 @@ export function useDevToolsConnection(): DevToolsConnection {
   // NOTE: Iframe captures are picked up via storage polling (set by background).
   // No direct onMessage listener needed — it caused duplicates.
 
-  // Start capture: inject picker on top frame + tell content scripts in all frames
+  // Start capture: tell content scripts in all frames (no eval picker - avoids duplicates)
   const startCapture = useCallback(async () => {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
@@ -763,7 +763,6 @@ export function useDevToolsConnection(): DevToolsConnection {
       chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: false, tabId });
     } catch (e) {}
 
-    await evalOnPage(PICKER_SCRIPT);
     await sendToAllFrames('START_CAPTURE');
     startPolling();
   }, [isConnected, startPolling, sendToAllFrames]);
@@ -784,13 +783,12 @@ export function useDevToolsConnection(): DevToolsConnection {
     startPolling();
   }, [isConnected, startPolling, sendToAllFrames]);
 
-  // Stop capture: remove picker + tell content scripts
+  // Stop capture: tell content scripts to stop
   const stopCapture = useCallback(async () => {
     if (!isCapturingRef.current) return;
     isCapturingRef.current = false;
 
     stopPolling();
-    await evalOnPage(STOP_PICKER_SCRIPT);
     await sendToAllFrames('STOP_CAPTURE');
     // Clear state via background
     try {
