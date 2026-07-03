@@ -315,6 +315,72 @@ function generateLocator(element: CapturedElement): string {
   return xpath;
 }
 
+/**
+ * Build XPath locator directly FROM the ZeuZ parameter rows.
+ * This ensures the XPath and ZeuZ parameters always show the same information.
+ */
+function buildLocatorFromRows(rows: ZeuzRow[], elementTag: string): string {
+  const parentConditions: string[] = [];
+  const elementConditions: string[] = [];
+  let tag = elementTag || '*';
+
+  for (const row of rows) {
+    // Skip non-locator rows
+    if (row.type === 'selenium action' || row.type === 'optional option' ||
+        row.type === 'save parameter' || row.type === 'target parameter') continue;
+
+    if (row.type === 'parent parameter') {
+      if (row.field === 'tag') {
+        // Parent tag — used in parent path
+        continue; // handled separately
+      } else if (row.field === '*class' || row.field === 'class') {
+        parentConditions.push(`contains(@class,'${row.value}')`);
+      } else if (row.field === 'id') {
+        parentConditions.push(`@id='${row.value}'`);
+      } else if (row.field === 'href') {
+        parentConditions.push(`@href='${row.value}'`);
+      } else if (row.field === 'src') {
+        parentConditions.push(`@src='${row.value}'`);
+      }
+    } else if (row.type === 'element parameter') {
+      if (row.field === 'tag') {
+        tag = row.value;
+      } else if (row.field === 'text' || row.field === '*text') {
+        elementConditions.push(`normalize-space(.)='${row.value.trim()}'`);
+      } else if (row.field === '*class' || row.field === 'class') {
+        elementConditions.push(`contains(@class,'${row.value}')`);
+      } else if (row.field === 'id') {
+        elementConditions.push(`@id='${row.value}'`);
+      } else if (row.field === 'name') {
+        elementConditions.push(`@name='${row.value}'`);
+      } else if (row.field === 'placeholder') {
+        elementConditions.push(`@placeholder='${row.value}'`);
+      } else if (row.field === 'aria-label') {
+        elementConditions.push(`@aria-label='${row.value}'`);
+      } else if (row.field === 'formcontrolname') {
+        elementConditions.push(`@formcontrolname='${row.value}'`);
+      } else if (row.field === 'data-testid') {
+        elementConditions.push(`@data-testid='${row.value}'`);
+      } else if (row.field === 'disabled') {
+        elementConditions.push(`@disabled`);
+      }
+      // Skip 'index' — avoid numeric indexes in xpath
+    }
+  }
+
+  // Build xpath
+  const elementPart = elementConditions.length > 0
+    ? `//${tag}[${elementConditions.join(' and ')}]`
+    : `//${tag}`;
+
+  if (parentConditions.length > 0) {
+    const parentPart = `//*[${parentConditions.join(' and ')}]`;
+    return `${parentPart}${elementPart.replace('//', '/')}`;
+  }
+
+  return elementPart;
+}
+
 // ─── Main formatter ─────────────────────────────────────────────────────────────
 
 /**
@@ -455,9 +521,9 @@ export function formatAsZeuzStep(
 
   rows.push(getActionRow(action));
 
-  // ─── Generate locator ──────────────────────────────────────────────────────
+  // ─── Generate locator FROM the ZeuZ rows (single source of truth) ────────────
 
-  const locator = generateLocator(element);
+  const locator = buildLocatorFromRows(rows, element.tag);
   const locatorName = generateLocatorName(element);
 
   return { title, stepNumber, rows, locator, locatorName };
