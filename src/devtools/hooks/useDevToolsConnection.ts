@@ -675,11 +675,13 @@ export function useDevToolsConnection(): DevToolsConnection {
     });
 
     // Evaluate match count using the LOCATOR xpath (the one shown in the UI)
-    const locatorXpath = zeuzStep.locator.replace(/'/g, "\\'");
+    // Use JSON.stringify to safely embed the xpath string without quote issues
+    const xpathJson = JSON.stringify(zeuzStep.locator);
     const countScript = `
       (function() {
         try {
-          var result = document.evaluate('${locatorXpath}', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          var xpath = ${xpathJson};
+          var result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
           return result.snapshotLength;
         } catch(e) { return -1; }
       })();
