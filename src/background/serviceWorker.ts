@@ -274,10 +274,14 @@ chrome.tabs.onRemoved.addListener((tabId: number) => {
 // --- Simple message handler for content script queries ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'IS_CAPTURE_ACTIVE') {
-    // Check storage and respond
-    chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode'], (result) => {
+    // Only respond active if the sender is from the active capture tab
+    chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode', '__qaCaptureTabId'], (result) => {
+      const senderTabId = sender.tab?.id;
+      const captureTabId = result.__qaCaptureTabId;
+      // Only active for the specific tab that started capture
+      const isActiveForThisTab = !!result.__qaCaptureActive && senderTabId === captureTabId;
       sendResponse({
-        active: !!result.__qaCaptureActive,
+        active: isActiveForThisTab,
         recordMode: !!result.__qaRecordMode,
       });
     });
@@ -288,6 +292,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.local.set({
       __qaCaptureActive: !!message.active,
       __qaRecordMode: !!message.recordMode,
+      __qaCaptureTabId: message.tabId || null,
     });
     sendResponse({ ok: true });
     return false;
@@ -299,6 +304,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+});
+
+// --- Tab switch: stop capture on the captured tab when user switches away ---
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  chrome.storage.local.get(['__qaCaptureActive', '__qaCaptureTabId'], (result) => {
+    if (result.__qaCaptureActive && result.__qaCaptureTabId && result.__qaCaptureTabId !== activeInfo.tabId) {
+      // User switched to a different tab — stop capture on the original tab
+      chrome.storage.local.set({ __qaCaptureActive: false, __qaRecordMode: false, __qaCaptureTabId: null });
+      // Send stop to the original capture tab
+      try {
+        const tabId = result.__qaCaptureTabId as number | undefined;
+        if (tabId) {
+          chrome.tabs.sendMessage(tabId, { type: 'STOP_CAPTURE' });
+        }
+      } catch (e) {}
+    }
+  });
 });
 
 console.log('[ServiceWorker] QA Automation Assistant background service worker initialized');

@@ -210,53 +210,28 @@ function stopPicker() {
 // --- Message Listener ---
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'START_CAPTURE') {
-    chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: false });
     startPicker(false);
     sendResponse({ ok: true });
   } else if (message.type === 'START_RECORD') {
-    chrome.storage.local.set({ __qaCaptureActive: true, __qaRecordMode: true });
     startPicker(true);
     sendResponse({ ok: true });
   } else if (message.type === 'STOP_CAPTURE') {
-    chrome.storage.local.set({ __qaCaptureActive: false, __qaRecordMode: false });
     stopPicker();
     sendResponse({ ok: true });
   }
   return false;
 });
 
-// Auto-start if capture was already active (handles iframe reloads and navigation)
-// Check immediately and also periodically (for frames that load late)
+// Auto-start: check if capture is active for THIS tab
 function checkAndAutoStart(retries = 3) {
   try {
-    // Method 1: Ask background service worker (most reliable for cross-origin frames)
     chrome.runtime.sendMessage({ type: 'IS_CAPTURE_ACTIVE' }, (response) => {
       if (chrome.runtime.lastError) {
-        console.log(`[QA Picker] ⚠️ runtime.sendMessage failed: ${chrome.runtime.lastError.message} | frame: ${window.location.href.substring(0, 60)}`);
-        // Fallback to storage
-        fallbackStorageCheck(retries);
+        if (retries > 0) setTimeout(() => checkAndAutoStart(retries - 1), 1000);
         return;
       }
-      console.log(`[QA Picker] 📡 Response from background: active=${response?.active}, record=${response?.recordMode} | frame: ${window.location.href.substring(0, 60)}`);
       if (response && response.active && !isCapturing) {
         startPicker(!!response.recordMode);
-      }
-    });
-  } catch (e) {
-    console.log(`[QA Picker] ❌ Exception in checkAndAutoStart: ${e} | frame: ${window.location.href.substring(0, 60)}`);
-    fallbackStorageCheck(retries);
-  }
-}
-
-function fallbackStorageCheck(retries: number) {
-  try {
-    chrome.storage.local.get(['__qaCaptureActive', '__qaRecordMode'], (result) => {
-      if (chrome.runtime.lastError) {
-        if (retries > 0) setTimeout(() => checkAndAutoStart(retries - 1), 500);
-        return;
-      }
-      if (result.__qaCaptureActive && !isCapturing) {
-        startPicker(!!result.__qaRecordMode);
       }
     });
   } catch (e) {}
@@ -266,26 +241,31 @@ checkAndAutoStart();
 setTimeout(() => checkAndAutoStart(), 1000);
 setTimeout(() => checkAndAutoStart(), 3000);
 
-// Keep checking every 2 seconds — handles dynamically created frames
+// Periodic check for late-loading frames (only every 2s)
 const periodicCheck = setInterval(() => {
   if (!isCapturing) {
     checkAndAutoStart(1);
   }
 }, 2000);
 
-// Also listen for storage changes (in case capture starts AFTER this frame loaded)
+// Listen for STOP from storage changes (immediate cleanup)
 try {
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.__qaCaptureActive) {
-      if (changes.__qaCaptureActive.newValue) {
-        const recordMode = changes.__qaRecordMode ? !!changes.__qaRecordMode.newValue : false;
-        if (!isCapturing) startPicker(recordMode);
-      } else {
+      if (!changes.__qaCaptureActive.newValue) {
+        // Capture stopped globally — clean up
         stopPicker();
       }
     }
   });
 } catch (e) {}
+
+// Clean up when page is hidden (tab switched away)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && isCapturing) {
+    stopPicker();
+  }
+});
 
 // Auto-cleanup if extension context invalidates
 try {

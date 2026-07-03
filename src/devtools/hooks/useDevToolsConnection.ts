@@ -739,9 +739,10 @@ export function useDevToolsConnection(): DevToolsConnection {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
-    // Set state via background (reliable across all contexts)
+    // Set state via background — scoped to this tab only
     try {
-      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: false });
+      const tabId = chrome.devtools?.inspectedWindow?.tabId;
+      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: false, tabId });
     } catch (e) {}
 
     await evalOnPage(PICKER_SCRIPT);
@@ -754,9 +755,10 @@ export function useDevToolsConnection(): DevToolsConnection {
     if (!isConnected || isCapturingRef.current) return;
     isCapturingRef.current = true;
 
-    // Set state via background (reliable across all contexts)
+    // Set state via background — scoped to this tab only
     try {
-      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: true });
+      const tabId = chrome.devtools?.inspectedWindow?.tabId;
+      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: true, recordMode: true, tabId });
     } catch (e) {}
 
     // Only use content scripts for record mode — no eval-based picker
@@ -774,7 +776,8 @@ export function useDevToolsConnection(): DevToolsConnection {
     await sendToAllFrames('STOP_CAPTURE');
     // Clear state via background
     try {
-      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: false, recordMode: false });
+      const tabId = chrome.devtools?.inspectedWindow?.tabId;
+      chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: false, recordMode: false, tabId: null });
     } catch (e) {}
   }, [stopPolling, sendToAllFrames]);
 
@@ -803,12 +806,21 @@ export function useDevToolsConnection(): DevToolsConnection {
     }
   }, [captureMode, startCapture, startRecord, stopCapture, startPolling, stopPolling]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount (DevTools panel closed)
   useEffect(() => {
     return () => {
       stopPolling();
       if (isCapturingRef.current) {
         evalOnPage(STOP_PICKER_SCRIPT);
+        // Stop capture globally and on all frames
+        try {
+          const tabId = chrome.devtools?.inspectedWindow?.tabId;
+          chrome.runtime.sendMessage({ type: 'SET_CAPTURE_STATE', active: false, recordMode: false, tabId: null });
+          if (tabId) {
+            chrome.tabs.sendMessage(tabId, { type: 'STOP_CAPTURE' });
+          }
+        } catch (e) {}
+        isCapturingRef.current = false;
       }
     };
   }, [stopPolling]);
