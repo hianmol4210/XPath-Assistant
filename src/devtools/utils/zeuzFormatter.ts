@@ -375,7 +375,10 @@ function buildLocatorFromRows(rows: ZeuzRow[], elementTag: string): string {
 
   if (parentConditions.length > 0) {
     const parentPart = `//*[${parentConditions.join(' and ')}]`;
-    return `${parentPart}${elementPart.replace('//', '/')}`;
+    if (elementConditions.length > 0) {
+      return `${parentPart}//${tag}[${elementConditions.join(' and ')}]`;
+    }
+    return `${parentPart}//${tag}`;
   }
 
   return elementPart;

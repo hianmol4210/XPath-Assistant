@@ -82,156 +82,156 @@ Implementation tasks for the QA Automation Assistant Chrome DevTools Extension. 
   - [x] 9.5. Style with Tailwind dark theme using dark background, rounded cards, proper spacing
   - [x] 9.6. Add keyboard shortcut handlers for Ctrl+Shift+C, Delete, ESC
 - [ ] 10. DevTools Panel - Action Builder Middle Panel
-  - [~] 10.1. Create src/devtools/components/MiddlePanel/ActionBuilder.tsx
-  - [~] 10.2. Create src/devtools/components/MiddlePanel/StepRow.tsx
-  - [~] 10.3. Each step row shows step number, action type dropdown, XPath highlighted, value field, copy and delete buttons
-  - [~] 10.4. XPath color coding with green for 1 match, yellow for needs review, red for multiple matches
-  - [~] 10.5. Action type dropdown with all relevant options
-  - [~] 10.6. Inline editing of value, delay, description
-  - [~] 10.7. Delete button removes step
-  - [~] 10.8. Copy ZeuZ Step button on each row
-  - [~] 10.9. Hovering a step row sends highlight message to content script
+  - [ ] 10.1. Create src/devtools/components/MiddlePanel/ActionBuilder.tsx
+  - [ ] 10.2. Create src/devtools/components/MiddlePanel/StepRow.tsx
+  - [ ] 10.3. Each step row shows step number, action type dropdown, XPath highlighted, value field, copy and delete buttons
+  - [ ] 10.4. XPath color coding with green for 1 match, yellow for needs review, red for multiple matches
+  - [ ] 10.5. Action type dropdown with all relevant options
+  - [ ] 10.6. Inline editing of value, delay, description
+  - [ ] 10.7. Delete button removes step
+  - [ ] 10.8. Copy ZeuZ Step button on each row
+  - [ ] 10.9. Hovering a step row sends highlight message to content script
 - [ ] 11. DevTools Panel - Element Details Right Panel
-  - [~] 11.1. Create src/devtools/components/RightPanel/ElementDetails.tsx
-  - [~] 11.2. Show basic info including tag, text, class, id, name, role, aria-label
-  - [~] 11.3. Show all generated selectors including relative xpath, absolute xpath, CSS selector, parent xpath
-  - [~] 11.4. Show confidence badge with color coding
-  - [~] 11.5. Show match count
-  - [~] 11.6. Show all attributes in a list
-  - [~] 11.7. Show element state including visible, enabled, checked, selected
-  - [~] 11.8. Show ZeuZ preview formatted step ready to copy
+  - [ ] 11.1. Create src/devtools/components/RightPanel/ElementDetails.tsx
+  - [ ] 11.2. Show basic info including tag, text, class, id, name, role, aria-label
+  - [ ] 11.3. Show all generated selectors including relative xpath, absolute xpath, CSS selector, parent xpath
+  - [ ] 11.4. Show confidence badge with color coding
+  - [ ] 11.5. Show match count
+  - [ ] 11.6. Show all attributes in a list
+  - [ ] 11.7. Show element state including visible, enabled, checked, selected
+  - [ ] 11.8. Show ZeuZ preview formatted step ready to copy
 - [ ] 12. Integration and End-to-End Flow
-  - [~] 12.1. Wire up Capture button to send message to content script enabling capture mode
-  - [~] 12.2. Wire up element click to send data through background to DevTools panel updating store and UI
-  - [~] 12.3. Wire up step row hover to send highlight message to content script
-  - [~] 12.4. Wire up Copy ZeuZ Step to clipboard
-  - [~] 12.5. Wire up Copy All to clipboard in ZeuZ format
-  - [~] 12.6. Wire up Clear to remove all steps
-  - [~] 12.7. Wire up ESC to exit capture mode
-  - [~] 12.8. Test full flow from open DevTools to click Capture to click element to see step to copy to paste
+  - [ ] 12.1. Wire up Capture button to send message to content script enabling capture mode
+  - [ ] 12.2. Wire up element click to send data through background to DevTools panel updating store and UI
+  - [ ] 12.3. Wire up step row hover to send highlight message to content script
+  - [ ] 12.4. Wire up Copy ZeuZ Step to clipboard
+  - [ ] 12.5. Wire up Copy All to clipboard in ZeuZ format
+  - [ ] 12.6. Wire up Clear to remove all steps
+  - [ ] 12.7. Wire up ESC to exit capture mode
+  - [ ] 12.8. Test full flow from open DevTools to click Capture to click element to see step to copy to paste
 - [ ] 13. Smart Next-Step Suggestions
-  - [~] 13.1. Expand action recommender with context-aware next-step logic
-  - [~] 13.2. After Click suggest Wait Until Hidden, Wait Until Visible, Verify Toast, Verify URL
-  - [~] 13.3. After Type Text suggest Verify Value, Clear Text first
-  - [~] 13.4. After form submit suggest Wait for spinner, Verify success message
-  - [~] 13.5. Create SuggestionChips component below each step
-  - [~] 13.6. Clicking a chip auto-adds the suggested step after current step
-  - [~] 13.7. Dismissable suggestions with X button
+  - [ ] 13.1. Expand action recommender with context-aware next-step logic
+  - [ ] 13.2. After Click suggest Wait Until Hidden, Wait Until Visible, Verify Toast, Verify URL
+  - [ ] 13.3. After Type Text suggest Verify Value, Clear Text first
+  - [ ] 13.4. After form submit suggest Wait for spinner, Verify success message
+  - [ ] 13.5. Create SuggestionChips component below each step
+  - [ ] 13.6. Clicking a chip auto-adds the suggested step after current step
+  - [ ] 13.7. Dismissable suggestions with X button
 - [ ] 14. Record Mode
-  - [~] 14.1. Create src/content/recordMode.ts
-  - [~] 14.2. Listen for click events to capture element and generate Click step
-  - [~] 14.3. Listen for input/change events to capture element and generate Type Text step with value
-  - [~] 14.4. Listen for select change to capture element and generate Select By Text step
-  - [~] 14.5. Listen for checkbox/radio change to capture element and generate Check/Select step
-  - [~] 14.6. Listen for navigation events to generate Navigate step
-  - [~] 14.7. Add Record button to toolbar separate from Capture
-  - [~] 14.8. Add recording indicator with red dot pulse animation
-  - [~] 14.9. Stop recording button
-  - [~] 14.10. All recorded events use same XPath generator and ZeuZ formatter
+  - [ ] 14.1. Create src/content/recordMode.ts
+  - [ ] 14.2. Listen for click events to capture element and generate Click step
+  - [ ] 14.3. Listen for input/change events to capture element and generate Type Text step with value
+  - [ ] 14.4. Listen for select change to capture element and generate Select By Text step
+  - [ ] 14.5. Listen for checkbox/radio change to capture element and generate Check/Select step
+  - [ ] 14.6. Listen for navigation events to generate Navigate step
+  - [ ] 14.7. Add Record button to toolbar separate from Capture
+  - [ ] 14.8. Add recording indicator with red dot pulse animation
+  - [ ] 14.9. Stop recording button
+  - [ ] 14.10. All recorded events use same XPath generator and ZeuZ formatter
 - [ ] 15. Step Grouping
-  - [~] 15.1. Create src/devtools/components/MiddlePanel/StepGroup.tsx
-  - [~] 15.2. Allow creating named groups like Login, Create User
-  - [~] 15.3. Drag steps into groups
-  - [~] 15.4. Collapsible group sections
-  - [~] 15.5. Group title editable
-  - [~] 15.6. Copy entire group in ZeuZ format
+  - [ ] 15.1. Create src/devtools/components/MiddlePanel/StepGroup.tsx
+  - [ ] 15.2. Allow creating named groups like Login, Create User
+  - [ ] 15.3. Drag steps into groups
+  - [ ] 15.4. Collapsible group sections
+  - [ ] 15.5. Group title editable
+  - [ ] 15.6. Copy entire group in ZeuZ format
 - [ ] 16. Step Reordering and Drag-and-Drop
-  - [~] 16.1. Install dnd-kit
-  - [~] 16.2. Implement drag-and-drop on step rows
-  - [~] 16.3. Visual drag indicator
-  - [~] 16.4. Reorder within groups and between groups
-  - [~] 16.5. Update step numbers automatically after reorder
+  - [ ] 16.1. Install dnd-kit
+  - [ ] 16.2. Implement drag-and-drop on step rows
+  - [ ] 16.3. Visual drag indicator
+  - [ ] 16.4. Reorder within groups and between groups
+  - [ ] 16.5. Update step numbers automatically after reorder
 - [ ] 17. Search and Filter
-  - [~] 17.1. Create src/devtools/components/Shared/SearchBar.tsx
-  - [~] 17.2. Search by XPath content
-  - [~] 17.3. Search by step text/description
-  - [~] 17.4. Filter by action type
-  - [~] 17.5. Highlight matching steps, dim non-matching
+  - [ ] 17.1. Create src/devtools/components/Shared/SearchBar.tsx
+  - [ ] 17.2. Search by XPath content
+  - [ ] 17.3. Search by step text/description
+  - [ ] 17.4. Filter by action type
+  - [ ] 17.5. Highlight matching steps, dim non-matching
 - [ ] 18. Inspector Tree Left Panel
-  - [~] 18.1. Create src/devtools/components/LeftPanel/InspectorTree.tsx
-  - [~] 18.2. Show captured elements in tree structure with parent child hierarchy
-  - [~] 18.3. Clicking a tree node selects it in the action builder and element details
-  - [~] 18.4. Show element tag and short identifier like id or text snippet
-  - [~] 18.5. Sync selection between tree node, page highlight, and builder
+  - [ ] 18.1. Create src/devtools/components/LeftPanel/InspectorTree.tsx
+  - [ ] 18.2. Show captured elements in tree structure with parent child hierarchy
+  - [ ] 18.3. Clicking a tree node selects it in the action builder and element details
+  - [ ] 18.4. Show element tag and short identifier like id or text snippet
+  - [ ] 18.5. Sync selection between tree node, page highlight, and builder
 - [ ] 19. Iframe and Shadow DOM Support
-  - [~] 19.1. Content script injection with all_frames true
-  - [~] 19.2. Detect when captured element is inside an iframe
-  - [~] 19.3. Auto-add Switch Frame step before iframe element interactions
-  - [~] 19.4. Traverse shadow DOM roots when generating XPath
-  - [~] 19.5. Handle shadow DOM in highlight overlay
+  - [ ] 19.1. Content script injection with all_frames true
+  - [ ] 19.2. Detect when captured element is inside an iframe
+  - [ ] 19.3. Auto-add Switch Frame step before iframe element interactions
+  - [ ] 19.4. Traverse shadow DOM roots when generating XPath
+  - [ ] 19.5. Handle shadow DOM in highlight overlay
 - [ ] 20. SPA Support and MutationObserver
-  - [~] 20.1. Implement MutationObserver in content script
-  - [~] 20.2. Re-evaluate selectors when DOM changes significantly
-  - [~] 20.3. Handle route changes without page reload detecting pushState and replaceState
-  - [~] 20.4. Notify panel if a previously captured element no longer exists in DOM
+  - [ ] 20.1. Implement MutationObserver in content script
+  - [ ] 20.2. Re-evaluate selectors when DOM changes significantly
+  - [ ] 20.3. Handle route changes without page reload detecting pushState and replaceState
+  - [ ] 20.4. Notify panel if a previously captured element no longer exists in DOM
 - [ ] 21. Full Action Types Library
-  - [~] 21.1. Create src/devtools/types/action.ts with all action type definitions
-  - [~] 21.2. Element Actions including Click, Double Click, Right Click, Hover, Focus, Blur, Scroll Into View, Drag and Drop, Upload File, Download
-  - [~] 21.3. Keyboard Actions including Type Text, Clear Text, Press Key, Hotkeys
-  - [~] 21.4. Mouse Actions including Mouse Down, Mouse Up, Mouse Move, Move to Offset
-  - [~] 21.5. Wait Actions including Wait For Element, Wait Until Visible/Hidden/Enabled/Disabled/Clickable/Present/Removed, Wait Fixed Time
-  - [~] 21.6. Validation Actions including Verify Exists/Not Exists/Visible/Hidden/Enabled/Disabled/Text/Attribute/CSS Property/URL/Title/Count/Checked/Selected
-  - [~] 21.7. Dropdown Actions including Select By Text/Value/Index, Deselect
-  - [~] 21.8. Table Actions including Get Row Count, Click Row, Click Cell, Read Cell
-  - [~] 21.9. Window/Browser/Frame/Alert/Screenshot/API actions
-  - [~] 21.10. Update ActionDropdown component to show all action types categorized
+  - [ ] 21.1. Create src/devtools/types/action.ts with all action type definitions
+  - [ ] 21.2. Element Actions including Click, Double Click, Right Click, Hover, Focus, Blur, Scroll Into View, Drag and Drop, Upload File, Download
+  - [ ] 21.3. Keyboard Actions including Type Text, Clear Text, Press Key, Hotkeys
+  - [ ] 21.4. Mouse Actions including Mouse Down, Mouse Up, Mouse Move, Move to Offset
+  - [ ] 21.5. Wait Actions including Wait For Element, Wait Until Visible/Hidden/Enabled/Disabled/Clickable/Present/Removed, Wait Fixed Time
+  - [ ] 21.6. Validation Actions including Verify Exists/Not Exists/Visible/Hidden/Enabled/Disabled/Text/Attribute/CSS Property/URL/Title/Count/Checked/Selected
+  - [ ] 21.7. Dropdown Actions including Select By Text/Value/Index, Deselect
+  - [ ] 21.8. Table Actions including Get Row Count, Click Row, Click Cell, Read Cell
+  - [ ] 21.9. Window/Browser/Frame/Alert/Screenshot/API actions
+  - [ ] 21.10. Update ActionDropdown component to show all action types categorized
 - [ ] 22. Multi-Framework Code Generation
-  - [~] 22.1. Create src/devtools/utils/codeGenerator.ts
-  - [~] 22.2. Selenium Java generator
-  - [~] 22.3. Python Selenium generator
-  - [~] 22.4. Playwright TypeScript generator
-  - [~] 22.5. Playwright Python generator
-  - [~] 22.6. Cypress generator
-  - [~] 22.7. Robot Framework generator
-  - [~] 22.8. ZeuZ format generator extending zeuzFormatter for full export
-  - [~] 22.9. Code preview panel/modal with syntax highlighting
+  - [ ] 22.1. Create src/devtools/utils/codeGenerator.ts
+  - [ ] 22.2. Selenium Java generator
+  - [ ] 22.3. Python Selenium generator
+  - [ ] 22.4. Playwright TypeScript generator
+  - [ ] 22.5. Playwright Python generator
+  - [ ] 22.6. Cypress generator
+  - [ ] 22.7. Robot Framework generator
+  - [ ] 22.8. ZeuZ format generator extending zeuzFormatter for full export
+  - [ ] 22.9. Code preview panel/modal with syntax highlighting
 - [ ] 23. Export Functionality
-  - [~] 23.1. Create src/devtools/utils/exporters.ts
-  - [~] 23.2. JSON export with structured step data
-  - [~] 23.3. CSV export in tabular format
-  - [~] 23.4. Markdown export as readable documentation
-  - [~] 23.5. HTML export styled and printable
-  - [~] 23.6. Excel export via SheetJS or similar
-  - [~] 23.7. Export modal with format selection
-  - [~] 23.8. Download file or copy to clipboard option
+  - [ ] 23.1. Create src/devtools/utils/exporters.ts
+  - [ ] 23.2. JSON export with structured step data
+  - [ ] 23.3. CSV export in tabular format
+  - [ ] 23.4. Markdown export as readable documentation
+  - [ ] 23.5. HTML export styled and printable
+  - [ ] 23.6. Excel export via SheetJS or similar
+  - [ ] 23.7. Export modal with format selection
+  - [ ] 23.8. Download file or copy to clipboard option
 - [ ] 24. Per-Framework Copy Buttons
-  - [~] 24.1. Add per-row copy dropdown with Copy XPath, Copy CSS, Copy Selenium, Copy Playwright, Copy Cypress, Copy ZeuZ Step
-  - [~] 24.2. Each copy option generates the locator/code in the target framework syntax
-  - [~] 24.3. Toast notification on successful copy
+  - [ ] 24.1. Add per-row copy dropdown with Copy XPath, Copy CSS, Copy Selenium, Copy Playwright, Copy Cypress, Copy ZeuZ Step
+  - [ ] 24.2. Each copy option generates the locator/code in the target framework syntax
+  - [ ] 24.3. Toast notification on successful copy
 - [ ] 25. Duplicate and Unstable Selector Detection
-  - [~] 25.1. Detect when multiple steps share the same XPath
-  - [~] 25.2. Warn user about duplicate locators highlighting in yellow/red
-  - [~] 25.3. Show Matches N badge on each selector
-  - [~] 25.4. Warn when match count is greater than 1
-  - [~] 25.5. Suggest alternatives when selector is unstable
-  - [~] 25.6. Periodic re-evaluation of selectors to check if still valid
+  - [ ] 25.1. Detect when multiple steps share the same XPath
+  - [ ] 25.2. Warn user about duplicate locators highlighting in yellow/red
+  - [ ] 25.3. Show Matches N badge on each selector
+  - [ ] 25.4. Warn when match count is greater than 1
+  - [ ] 25.5. Suggest alternatives when selector is unstable
+  - [ ] 25.6. Periodic re-evaluation of selectors to check if still valid
 - [ ] 26. Settings Panel
-  - [~] 26.1. Create Settings modal/drawer
-  - [~] 26.2. Default wait time configuration
-  - [~] 26.3. XPath strategy preference for smart, always-relative, or always-absolute
-  - [~] 26.4. Auto-suggest toggle
-  - [~] 26.5. Keyboard shortcut customization
-  - [~] 26.6. Export format preferences
-  - [~] 26.7. Persist settings in chrome.storage.local
+  - [ ] 26.1. Create Settings modal/drawer
+  - [ ] 26.2. Default wait time configuration
+  - [ ] 26.3. XPath strategy preference for smart, always-relative, or always-absolute
+  - [ ] 26.4. Auto-suggest toggle
+  - [ ] 26.5. Keyboard shortcut customization
+  - [ ] 26.6. Export format preferences
+  - [ ] 26.7. Persist settings in chrome.storage.local
 - [ ] 27. Virtual Scrolling and Performance
-  - [~] 27.1. Install react-window
-  - [~] 27.2. Implement virtualized step list for 100+ steps
-  - [~] 27.3. Optimize re-renders with React.memo and useMemo
-  - [~] 27.4. Debounce highlight on hover at 50ms
-  - [~] 27.5. Lazy-load right panel content
+  - [ ] 27.1. Install react-window
+  - [ ] 27.2. Implement virtualized step list for 100+ steps
+  - [ ] 27.3. Optimize re-renders with React.memo and useMemo
+  - [ ] 27.4. Debounce highlight on hover at 50ms
+  - [ ] 27.5. Lazy-load right panel content
 - [ ] 28. Final Polish and Production Readiness
-  - [~] 28.1. Add extension icons at 16, 48, 128 sizes
-  - [~] 28.2. Add smooth animations for panel transitions and step add/remove
-  - [~] 28.3. Add toast notifications for copy actions
-  - [~] 28.4. Add loading states
-  - [~] 28.5. Error handling for content script disconnection and tab closed
-  - [~] 28.6. Test on Angular apps with dynamic IDs
-  - [~] 28.7. Test on React apps with virtual DOM
-  - [~] 28.8. Test on SPAs with route changes
-  - [~] 28.9. Test with iframes
-  - [~] 28.10. Test with Shadow DOM components
-  - [~] 28.11. Production webpack build minified and optimized
-  - [~] 28.12. Write README with installation and usage instructions
+  - [ ] 28.1. Add extension icons at 16, 48, 128 sizes
+  - [ ] 28.2. Add smooth animations for panel transitions and step add/remove
+  - [ ] 28.3. Add toast notifications for copy actions
+  - [ ] 28.4. Add loading states
+  - [ ] 28.5. Error handling for content script disconnection and tab closed
+  - [ ] 28.6. Test on Angular apps with dynamic IDs
+  - [ ] 28.7. Test on React apps with virtual DOM
+  - [ ] 28.8. Test on SPAs with route changes
+  - [ ] 28.9. Test with iframes
+  - [ ] 28.10. Test with Shadow DOM components
+  - [ ] 28.11. Production webpack build minified and optimized
+  - [ ] 28.12. Write README with installation and usage instructions
 
 ## Task Dependency Graph
 
