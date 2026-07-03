@@ -291,13 +291,47 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
               {step.selector.matchCount === 1 ? '✓ 1' : `⚠ ${step.selector.matchCount}`}
             </span>
           )}
+          {step.selector.matchCount < 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-warning/20 text-warning">
+              ? Unknown
+            </span>
+          )}
         </div>
 
-        {/* Full XPath on its own line — wraps, fully selectable */}
-        <div className={`text-xs font-mono break-all select-all cursor-text p-1.5 rounded bg-surface ${
-          step.selector.matchCount === 1 ? 'text-success' :
-          step.selector.matchCount > 1 ? 'text-error' : 'text-text-muted'
-        }`}>
+        {/* Full XPath on its own line — wraps, fully selectable, CLICK to highlight */}
+        <div
+          className={`text-xs font-mono break-all select-all cursor-pointer p-1.5 rounded bg-surface hover:ring-1 hover:ring-primary-500 ${
+            step.selector.matchCount === 1 ? 'text-success' :
+            step.selector.matchCount > 1 ? 'text-error' : 'text-text-muted'
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            // Highlight element on page by evaluating the xpath
+            try {
+              chrome.devtools.inspectedWindow.eval(`
+                (function() {
+                  var xpath = ${JSON.stringify(step.zeuzStep.locator)};
+                  try {
+                    var result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                    var el = result.singleNodeValue;
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      var rect = el.getBoundingClientRect();
+                      var hl = document.createElement('div');
+                      hl.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:3px solid #22c55e;background:rgba(34,197,94,0.2);border-radius:4px;transition:opacity 0.5s;';
+                      hl.style.top = rect.top+'px'; hl.style.left = rect.left+'px';
+                      hl.style.width = rect.width+'px'; hl.style.height = rect.height+'px';
+                      document.documentElement.appendChild(hl);
+                      setTimeout(function(){ hl.style.opacity='0'; }, 2000);
+                      setTimeout(function(){ hl.remove(); }, 2500);
+                    }
+                  } catch(e) {}
+                })();
+              `);
+            } catch (e) {}
+          }}
+          title="Click to highlight element on page"
+        >
           {step.zeuzStep.locator}
         </div>
 
