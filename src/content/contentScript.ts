@@ -387,6 +387,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   } else if (message.type === 'STOP_CAPTURE') {
     stopPicker();
     sendResponse({ ok: true });
+  } else if (message.type === 'HIGHLIGHT_XPATH') {
+    // Highlight element by xpath — works in all frames
+    try {
+      const xpath = message.xpath;
+      const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      const el = result.singleNodeValue as HTMLElement;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const rect = el.getBoundingClientRect();
+        const hl = document.createElement('div');
+        hl.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:3px solid #22c55e;background:rgba(34,197,94,0.2);border-radius:4px;transition:opacity 0.5s;';
+        hl.style.top = `${rect.top}px`;
+        hl.style.left = `${rect.left}px`;
+        hl.style.width = `${rect.width}px`;
+        hl.style.height = `${rect.height}px`;
+        document.documentElement.appendChild(hl);
+        setTimeout(() => { hl.style.opacity = '0'; }, 2000);
+        setTimeout(() => { hl.remove(); }, 2500);
+        sendResponse({ found: true });
+      } else {
+        sendResponse({ found: false });
+      }
+    } catch (e) {
+      sendResponse({ found: false });
+    }
   }
   return false;
 });

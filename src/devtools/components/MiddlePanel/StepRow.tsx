@@ -306,29 +306,16 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            // Highlight element on page by evaluating the xpath
+            // Highlight element on page — send to all frames via tabs.sendMessage
             try {
-              chrome.devtools.inspectedWindow.eval(`
-                (function() {
-                  var xpath = ${JSON.stringify(step.zeuzStep.locator)};
-                  try {
-                    var result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-                    var el = result.singleNodeValue;
-                    if (el) {
-                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      var rect = el.getBoundingClientRect();
-                      var hl = document.createElement('div');
-                      hl.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:3px solid #22c55e;background:rgba(34,197,94,0.2);border-radius:4px;transition:opacity 0.5s;';
-                      hl.style.top = rect.top+'px'; hl.style.left = rect.left+'px';
-                      hl.style.width = rect.width+'px'; hl.style.height = rect.height+'px';
-                      document.documentElement.appendChild(hl);
-                      setTimeout(function(){ hl.style.opacity='0'; }, 2000);
-                      setTimeout(function(){ hl.remove(); }, 2500);
-                    }
-                  } catch(e) {}
-                })();
-              `);
-            } catch (e) {}
+              const tabId = chrome.devtools?.inspectedWindow?.tabId;
+              if (tabId) {
+                chrome.tabs.sendMessage(tabId, {
+                  type: 'HIGHLIGHT_XPATH',
+                  xpath: step.zeuzStep.locator,
+                });
+              }
+            } catch (err) {}
           }}
           title="Click to highlight element on page"
         >
