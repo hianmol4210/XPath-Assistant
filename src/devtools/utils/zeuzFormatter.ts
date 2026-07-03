@@ -459,39 +459,35 @@ export function formatAsZeuzStep(
     rows.push({ field: 'disabled', type: 'element parameter', value: '' });
   }
 
-  // ─── Parent parameters (narrow down context) ──────────────────────────────
+  // ─── Parent parameter (ONE only — the most meaningful for narrowing down) ───
 
-  // Class with * prefix (contains match) — element's own class as parent param
-  if (element.classes.length > 0) {
-    const stableClasses = element.classes.filter(c => !isDynamicValue(c) && c.length > 3);
-    if (stableClasses.length > 0) {
-      rows.push({ field: '*class', type: 'parent parameter', value: stableClasses.join(' ') });
-    }
-  }
-
-  // href (for links/anchors)
-  const href = element.attributes['href'];
-  if (href && !isDynamicValue(href)) {
-    rows.push({ field: 'href', type: 'parent parameter', value: href });
-  }
-
-  // src (for images/iframes)
-  const src = element.attributes['src'];
-  if (src && !isDynamicValue(src)) {
-    rows.push({ field: 'src', type: 'parent parameter', value: src });
-  }
-
-  // Parent container context (to narrow down when multiple similar elements exist)
+  let parentAdded = false;
   const { hierarchy } = element;
-  if (hierarchy.parentId && !isDynamicValue(hierarchy.parentId)) {
+
+  // Priority 1: Parent container ID (most specific)
+  if (!parentAdded && hierarchy.parentId && !isDynamicValue(hierarchy.parentId)) {
     rows.push({ field: 'id', type: 'parent parameter', value: hierarchy.parentId });
-  } else if (hierarchy.parentClasses.length > 0) {
+    parentAdded = true;
+  }
+
+  // Priority 2: Parent container class (stable)
+  if (!parentAdded && hierarchy.parentClasses.length > 0) {
     const parentClass = hierarchy.parentClasses
       .filter(c => c.length > 3 && !isDynamicValue(c))
       .slice(0, 2)
       .join(' ');
     if (parentClass) {
       rows.push({ field: '*class', type: 'parent parameter', value: parentClass });
+      parentAdded = true;
+    }
+  }
+
+  // Priority 3: Element's own stable class as parent param (if no parent context found)
+  if (!parentAdded && element.classes.length > 0) {
+    const stableClasses = element.classes.filter(c => !isDynamicValue(c) && c.length > 3);
+    if (stableClasses.length > 0) {
+      rows.push({ field: '*class', type: 'parent parameter', value: stableClasses.join(' ') });
+      parentAdded = true;
     }
   }
 
