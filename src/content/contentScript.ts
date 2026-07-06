@@ -443,16 +443,8 @@ const periodicCheck = setInterval(() => {
 }, 2000);
 
 // Listen for STOP from storage changes (immediate cleanup)
-try {
-  chrome.storage.onChanged.addListener((changes) => {
-    if (changes.__qaCaptureActive) {
-      if (!changes.__qaCaptureActive.newValue) {
-        // Capture stopped globally — clean up
-        stopPicker();
-      }
-    }
-  });
-} catch (e) {}
+// Storage change listener removed — was causing false stops.
+// Capture is stopped only via explicit STOP_CAPTURE message.
 
 // Don't auto-stop on visibility change — it causes false stops when switching to DevTools panel
 
