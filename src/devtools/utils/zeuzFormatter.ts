@@ -412,9 +412,9 @@ export function formatAsZeuzStep(
 
   // ─── Element parameters (identify the target) ──────────────────────────────
 
-  // Text — primary identifier (keep exact text with spaces for accurate matching)
+  // Text — primary identifier (use *text for contains matching in ZeuZ)
   if (element.text && element.text.length > 0) {
-    rows.push({ field: 'text', type: 'element parameter', value: element.text });
+    rows.push({ field: '*text', type: 'element parameter', value: element.text });
   }
 
   // Tag — useful for ZeuZ to know element type
@@ -483,13 +483,13 @@ export function formatAsZeuzStep(
     }
   }
 
-  // Priority 3: Element's own stable class (use single most unique class, not all)
+  // Priority 3: Element's own stable class (use as ELEMENT parameter, not parent)
+  // ZeuZ interprets "parent parameter" as ancestor::* which is wrong for the element itself
   if (!parentAdded && element.classes.length > 0) {
     const stableClasses = element.classes.filter(c => !isDynamicValue(c) && c.length > 3);
     if (stableClasses.length > 0) {
-      // Pick the most specific/unique class (longest one usually)
       const bestClass = stableClasses.sort((a, b) => b.length - a.length)[0];
-      rows.push({ field: '*class', type: 'parent parameter', value: bestClass });
+      rows.push({ field: '*class', type: 'element parameter', value: bestClass });
       parentAdded = true;
     }
   }
