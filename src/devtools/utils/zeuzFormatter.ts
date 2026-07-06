@@ -346,7 +346,14 @@ function buildLocatorFromRows(rows: ZeuzRow[], elementTag: string): string {
       if (row.field === 'tag') {
         tag = row.value;
       } else if (row.field === 'text' || row.field === '*text') {
-        elementConditions.push(`normalize-space(.)='${row.value.trim()}'`);
+        // Use contains() for text matching — more robust than exact normalize-space match
+        const trimmed = row.value.trim();
+        if (trimmed.length <= 40) {
+          elementConditions.push(`contains(.,'${trimmed}')`);
+        } else {
+          // For long text, use first 30 chars
+          elementConditions.push(`contains(.,'${trimmed.substring(0, 30)}')`);
+        }
       } else if (row.field === '*class' || row.field === 'class') {
         elementConditions.push(`contains(@class,'${row.value}')`);
       } else if (row.field === 'id') {
@@ -368,20 +375,15 @@ function buildLocatorFromRows(rows: ZeuzRow[], elementTag: string): string {
     }
   }
 
-  // Build xpath
-  const elementPart = elementConditions.length > 0
-    ? `//${tag}[${elementConditions.join(' and ')}]`
-    : `//${tag}`;
-
-  if (parentConditions.length > 0) {
-    const parentPart = `//*[${parentConditions.join(' and ')}]`;
-    if (elementConditions.length > 0) {
-      return `${parentPart}//${tag}[${elementConditions.join(' and ')}]`;
-    }
-    return `${parentPart}//${tag}`;
+  // Build xpath — combine ALL conditions on the same element (no parent//child separation)
+  // because our parent parameter refers to the element's own context, not a separate ancestor
+  const allConditions = [...parentConditions, ...elementConditions];
+  
+  if (allConditions.length > 0) {
+    return `//${tag}[${allConditions.join(' and ')}]`;
   }
 
-  return elementPart;
+  return `//${tag}`;
 }
 
 // ─── Main formatter ─────────────────────────────────────────────────────────────
@@ -470,23 +472,24 @@ export function formatAsZeuzStep(
     parentAdded = true;
   }
 
-  // Priority 2: Parent container class (stable)
+  // Priority 2: Parent container class (use single most unique class)
   if (!parentAdded && hierarchy.parentClasses.length > 0) {
     const parentClass = hierarchy.parentClasses
       .filter(c => c.length > 3 && !isDynamicValue(c))
-      .slice(0, 2)
-      .join(' ');
+      .sort((a, b) => b.length - a.length)[0]; // longest = most specific
     if (parentClass) {
       rows.push({ field: '*class', type: 'parent parameter', value: parentClass });
       parentAdded = true;
     }
   }
 
-  // Priority 3: Element's own stable class as parent param (if no parent context found)
+  // Priority 3: Element's own stable class (use single most unique class, not all)
   if (!parentAdded && element.classes.length > 0) {
     const stableClasses = element.classes.filter(c => !isDynamicValue(c) && c.length > 3);
     if (stableClasses.length > 0) {
-      rows.push({ field: '*class', type: 'parent parameter', value: stableClasses.join(' ') });
+      // Pick the most specific/unique class (longest one usually)
+      const bestClass = stableClasses.sort((a, b) => b.length - a.length)[0];
+      rows.push({ field: '*class', type: 'parent parameter', value: bestClass });
       parentAdded = true;
     }
   }
