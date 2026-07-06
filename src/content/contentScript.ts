@@ -89,11 +89,26 @@ function generateSmartXpath(el: Element): string {
     if (countMatches(xpath) === 1) return xpath;
   }
 
-  // Strategy 7: Text content (short, direct text)
-  const directText = (el.textContent || '').trim();
-  if (directText && directText.length <= 60 && !directText.includes('\n')) {
+  // Strategy 7: Text content (use element's own direct text, not children's text)
+  // Get only direct text nodes (not from child elements)
+  const ownTextNodes = Array.from(el.childNodes)
+    .filter(n => n.nodeType === Node.TEXT_NODE)
+    .map(n => (n.textContent || '').trim())
+    .filter(t => t.length > 0);
+  const ownText = ownTextNodes.join(' ').trim();
+  // Also get full textContent as fallback for leaf elements (no children)
+  const fullText = (el.textContent || '').trim();
+  const directText = (el.children.length === 0) ? fullText : ownText;
+  
+  if (directText && directText.length > 0 && directText.length <= 60 && !directText.includes('\n')) {
     const xpath = `//${tag}[normalize-space(.)='${directText}']`;
     if (countMatches(xpath) === 1) return xpath;
+    // Try contains for partial text match
+    if (directText.length > 10) {
+      const partial = directText.substring(0, 30);
+      const xpath2 = `//${tag}[contains(normalize-space(.),'${partial}')]`;
+      if (countMatches(xpath2) === 1) return xpath2;
+    }
     // Try with parent context
     const parentEl = el.parentElement;
     if (parentEl) {
@@ -224,9 +239,20 @@ function collectElementData(el: Element) {
   const sameTagSiblingIndex = sameTagSiblings.indexOf(el);
   const sameTagSiblingCount = sameTagSiblings.length;
 
+  // Get own text (direct text nodes only, not child elements' text)
+  const elementOwnText = Array.from(el.childNodes)
+    .filter(n => n.nodeType === Node.TEXT_NODE)
+    .map(n => (n.textContent || '').trim())
+    .filter(t => t.length > 0)
+    .join(' ');
+  // For leaf elements (no children), use full textContent
+  const textForCapture = el.children.length === 0
+    ? (el.textContent || '').substring(0, 200)
+    : elementOwnText.substring(0, 200);
+
   return {
     tag: el.tagName.toLowerCase(),
-    text: (el.textContent || '').substring(0, 200),
+    text: textForCapture,
     innerText: ((el as HTMLElement).innerText || '').substring(0, 500),
     id: el.id || '',
     name: el.getAttribute('name') || '',
