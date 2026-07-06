@@ -235,8 +235,9 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
         className="px-3 py-1.5 cursor-pointer hover:bg-surface/30 rounded"
         onClick={(e) => {
           e.stopPropagation();
-          // Highlight element using the locator xpath
-          const xpathStr = JSON.stringify(step.zeuzStep.locator);
+          // Use _smartXpath (verified unique on live DOM) for highlighting
+          const xpath = (step.element as any)?._smartXpath || step.zeuzStep.locator;
+          const xpathStr = JSON.stringify(xpath);
           try {
             chrome.devtools.inspectedWindow.eval(`
               (function() {
@@ -348,8 +349,9 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            // Highlight element using inspectedWindow.eval (works from DevTools panel)
-            const xpathStr = JSON.stringify(step.zeuzStep.locator);
+            // Use _smartXpath for highlighting (verified unique on live DOM)
+            const xpath = (step.element as any)?._smartXpath || step.zeuzStep.locator;
+            const xpathStr = JSON.stringify(xpath);
             try {
               chrome.devtools.inspectedWindow.eval(`
                 (function() {
@@ -375,23 +377,15 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
                     } catch(e) {}
                     return false;
                   }
-                  // Try top document first
                   if (tryHighlight(document)) return 'found';
-                  // Try iframes
                   var iframes = document.querySelectorAll('iframe');
                   for (var i = 0; i < iframes.length; i++) {
-                    try {
-                      if (iframes[i].contentDocument && tryHighlight(iframes[i].contentDocument)) return 'found_in_iframe';
-                    } catch(e) {}
+                    try { if (iframes[i].contentDocument && tryHighlight(iframes[i].contentDocument)) return 'found'; } catch(e) {}
                   }
                   return 'not_found';
                 })();
-              `, (result: unknown) => {
-                console.log('[QA Highlight] Result:', result);
-              });
-            } catch (err) {
-              console.warn('[QA Highlight] Failed:', err);
-            }
+              `);
+            } catch (err) {}
           }}
           title="Click to highlight element on page"
         >
