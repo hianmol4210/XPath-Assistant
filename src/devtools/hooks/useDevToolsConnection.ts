@@ -793,13 +793,17 @@ export function useDevToolsConnection(): DevToolsConnection {
     } catch (e) {}
   }, [stopPolling, sendToAllFrames]);
 
-  // Sync with store's captureMode
+  // Sync captureMode changes — only react to ACTUAL user-initiated changes
   const prevModeRef = useRef(captureMode);
+  const hasSyncedRef = useRef(false);
 
   useEffect(() => {
     const prev = prevModeRef.current;
+    
+    // Skip if same
+    if (prev === captureMode) return;
+    
     prevModeRef.current = captureMode;
-
     console.log(`[DevTools] captureMode changed: ${prev} → ${captureMode}`);
 
     if (captureMode === 'capturing' && prev === 'idle') {
@@ -808,16 +812,8 @@ export function useDevToolsConnection(): DevToolsConnection {
       startRecord();
     } else if (captureMode === 'idle' && (prev === 'capturing' || prev === 'paused' || prev === 'recording')) {
       stopCapture();
-    } else if (captureMode === 'paused' && prev === 'capturing') {
-      evalOnPage(PAUSE_PICKER_SCRIPT);
-    } else if (captureMode === 'capturing' && prev === 'paused') {
-      evalOnPage(RESUME_PICKER_SCRIPT).then((result) => {
-        if (result === '__QA_PICKER_NOT_ACTIVE__') {
-          evalOnPage(PICKER_SCRIPT);
-        }
-      });
     }
-  }, [captureMode, startCapture, startRecord, stopCapture, startPolling, stopPolling]);
+  }, [captureMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup on unmount (DevTools panel closed)
   useEffect(() => {
