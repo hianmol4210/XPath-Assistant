@@ -230,8 +230,50 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
         </button>
       </div>
 
-      {/* ZeuZ parameter rows */}
-      <div className="px-3 py-1.5">
+      {/* ZeuZ parameter rows — click to highlight element on page */}
+      <div
+        className="px-3 py-1.5 cursor-pointer hover:bg-surface/30 rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          // Highlight element using the locator xpath
+          const xpathStr = JSON.stringify(step.zeuzStep.locator);
+          try {
+            chrome.devtools.inspectedWindow.eval(`
+              (function() {
+                var xpath = ${xpathStr};
+                function tryHighlight(doc) {
+                  try {
+                    var result = doc.evaluate(xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                    var el = result.singleNodeValue;
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      setTimeout(function() {
+                        var rect = el.getBoundingClientRect();
+                        var hl = doc.createElement('div');
+                        hl.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:3px solid #3b82f6;background:rgba(59,130,246,0.2);border-radius:4px;transition:opacity 0.5s;';
+                        hl.style.top=rect.top+'px';hl.style.left=rect.left+'px';
+                        hl.style.width=rect.width+'px';hl.style.height=rect.height+'px';
+                        doc.documentElement.appendChild(hl);
+                        setTimeout(function(){hl.style.opacity='0';},2000);
+                        setTimeout(function(){hl.remove();},2500);
+                      }, 300);
+                      return true;
+                    }
+                  } catch(e) {}
+                  return false;
+                }
+                if (tryHighlight(document)) return 'found';
+                var iframes = document.querySelectorAll('iframe');
+                for (var i = 0; i < iframes.length; i++) {
+                  try { if (iframes[i].contentDocument && tryHighlight(iframes[i].contentDocument)) return 'found'; } catch(e) {}
+                }
+                return 'not_found';
+              })();
+            `);
+          } catch (err) {}
+        }}
+        title="Click to highlight element on page"
+      >
         <table className="w-full text-xs font-mono">
           <tbody>
             {step.zeuzStep.rows.map((row, idx) => (
