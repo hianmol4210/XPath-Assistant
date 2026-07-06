@@ -712,18 +712,7 @@ export function useDevToolsConnection(): DevToolsConnection {
       const now = Date.now();
       if (now - lastCaptureTimestampRef.current < 1000) return;
 
-      // Check 1: Top frame capture via eval
-      const result = await evalOnPage(GET_CAPTURE_SCRIPT);
-      if (result && result !== 'null' && result !== 'undefined') {
-        try {
-          const element = JSON.parse(result) as CapturedElement;
-          lastCaptureTimestampRef.current = Date.now();
-          processElement(element);
-        } catch (e) {}
-        return; // Found one, don't check storage this tick
-      }
-
-      // Check 2: Iframe capture via storage
+      // Get captured element from storage (set by background from content script)
       try {
         chrome.storage.local.get(['__qaLastCapturedElement'], (res) => {
           if (res.__qaLastCapturedElement) {
