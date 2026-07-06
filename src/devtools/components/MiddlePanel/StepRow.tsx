@@ -306,16 +306,50 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            // Highlight element on page — send to all frames via tabs.sendMessage
+            // Highlight element using inspectedWindow.eval (works from DevTools panel)
+            const xpathStr = JSON.stringify(step.zeuzStep.locator);
             try {
-              const tabId = chrome.devtools?.inspectedWindow?.tabId;
-              if (tabId) {
-                chrome.tabs.sendMessage(tabId, {
-                  type: 'HIGHLIGHT_XPATH',
-                  xpath: step.zeuzStep.locator,
-                });
-              }
-            } catch (err) {}
+              chrome.devtools.inspectedWindow.eval(`
+                (function() {
+                  var xpath = ${xpathStr};
+                  function tryHighlight(doc) {
+                    try {
+                      var result = doc.evaluate(xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                      var el = result.singleNodeValue;
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(function() {
+                          var rect = el.getBoundingClientRect();
+                          var hl = doc.createElement('div');
+                          hl.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:3px solid #22c55e;background:rgba(34,197,94,0.2);border-radius:4px;transition:opacity 0.5s;';
+                          hl.style.top=rect.top+'px';hl.style.left=rect.left+'px';
+                          hl.style.width=rect.width+'px';hl.style.height=rect.height+'px';
+                          doc.documentElement.appendChild(hl);
+                          setTimeout(function(){hl.style.opacity='0';},2000);
+                          setTimeout(function(){hl.remove();},2500);
+                        }, 300);
+                        return true;
+                      }
+                    } catch(e) {}
+                    return false;
+                  }
+                  // Try top document first
+                  if (tryHighlight(document)) return 'found';
+                  // Try iframes
+                  var iframes = document.querySelectorAll('iframe');
+                  for (var i = 0; i < iframes.length; i++) {
+                    try {
+                      if (iframes[i].contentDocument && tryHighlight(iframes[i].contentDocument)) return 'found_in_iframe';
+                    } catch(e) {}
+                  }
+                  return 'not_found';
+                })();
+              `, (result: unknown) => {
+                console.log('[QA Highlight] Result:', result);
+              });
+            } catch (err) {
+              console.warn('[QA Highlight] Failed:', err);
+            }
           }}
           title="Click to highlight element on page"
         >
