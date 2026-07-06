@@ -800,10 +800,11 @@ export function useDevToolsConnection(): DevToolsConnection {
     const prev = prevModeRef.current;
     prevModeRef.current = captureMode;
 
+    console.log(`[DevTools] captureMode changed: ${prev} → ${captureMode}`);
+
     if (captureMode === 'capturing' && prev === 'idle') {
       startCapture();
     } else if (captureMode === 'recording' && prev === 'idle') {
-      // Record mode: capture XPath + let clicks pass through
       startRecord();
     } else if (captureMode === 'idle' && (prev === 'capturing' || prev === 'paused' || prev === 'recording')) {
       stopCapture();
