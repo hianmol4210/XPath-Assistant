@@ -454,12 +454,7 @@ try {
   });
 } catch (e) {}
 
-// Clean up when page is hidden (tab switched away)
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && isCapturing) {
-    stopPicker();
-  }
-});
+// Don't auto-stop on visibility change — it causes false stops when switching to DevTools panel
 
 // Auto-cleanup if extension context invalidates
 try {
