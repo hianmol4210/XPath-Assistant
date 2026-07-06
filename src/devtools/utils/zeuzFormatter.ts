@@ -346,13 +346,10 @@ function buildLocatorFromRows(rows: ZeuzRow[], elementTag: string): string {
       if (row.field === 'tag') {
         tag = row.value;
       } else if (row.field === 'text' || row.field === '*text') {
-        // Use contains() for text matching — more robust than exact normalize-space match
+        // Use contains() for text matching — full text, no truncation
         const trimmed = row.value.trim();
-        if (trimmed.length <= 40) {
+        if (trimmed) {
           elementConditions.push(`contains(.,'${trimmed}')`);
-        } else {
-          // For long text, use first 30 chars
-          elementConditions.push(`contains(.,'${trimmed.substring(0, 30)}')`);
         }
       } else if (row.field === '*class' || row.field === 'class') {
         elementConditions.push(`contains(@class,'${row.value}')`);
