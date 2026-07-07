@@ -275,11 +275,15 @@ export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreR
   let containerParent: { tag: string; id: string; classes: string[] } | null = null;
   let containerLevel = -1;
 
-  // If clicked element is a leaf, find the collection container in ancestors
-  if (leafTags.has(element.tag)) {
+  // Detect if clicked element is a repeated leaf item
+  const isRepeatedItem = (element._sameTagSiblingCount || 0) > 1;
+  const isLeafElement = leafTags.has(element.tag) || isRepeatedItem;
+
+  // If clicked element is a leaf or repeated item, find the collection container
+  if (isLeafElement) {
     for (let i = 0; i < ancestors.length; i++) {
       const anc = ancestors[i];
-      // Check if this ancestor is a collection container
+      // Check if this ancestor is a known collection container
       if (containerTags.has(anc.tag)) {
         containerAncestor = anc;
         containerLevel = i;
@@ -289,10 +293,9 @@ export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreR
         }
         break;
       }
-      // Also check for div/section with role like listbox, grid, tree
+      // Also check for elements with list/items/grid related classes
       const stableClasses = getStableClasses(anc.classes);
-      if (anc.tag === 'ul' || anc.tag === 'ol' || 
-          stableClasses.some(c => c.includes('list') || c.includes('items') || c.includes('grid') || c.includes('table'))) {
+      if (stableClasses.some(c => c.includes('list') || c.includes('items') || c.includes('grid') || c.includes('table') || c.includes('multiselect'))) {
         containerAncestor = anc;
         containerLevel = i;
         if (i + 1 < ancestors.length) {
