@@ -10,6 +10,12 @@
  *
  * This module analyzes the enriched DOM data (ancestors, children, sibling index)
  * to produce production-ready ZeuZ locator parameters.
+ *
+ * For collection-based actions (Save Attribute Values in List):
+ * - Detects when the clicked element belongs to a repeated structure
+ * - Promotes the "element parameter" to the nearest collection container
+ * - Generates a "parent parameter" for the wrapper above the container
+ * - Keeps the clicked element (or appropriate child) as the "target parameter"
  */
 
 import { CapturedElement } from '../../shared/types';
@@ -35,6 +41,32 @@ const CONTAINER_TAGS = new Set([
   'main', 'dialog', 'fieldset', 'details',
 ]);
 
+// Tags that are inherently collection containers (hold repeated children)
+const COLLECTION_CONTAINER_TAGS = new Set([
+  'ul', 'ol', 'tbody', 'thead', 'table', 'dl', 'select', 'datalist',
+]);
+
+// Tags that are inherently repeated items within a collection
+const REPEATED_ITEM_TAGS = new Set([
+  'li', 'tr', 'dt', 'dd', 'option',
+]);
+
+// Tags that are typically leaf content inside repeated items
+const LEAF_CONTENT_TAGS = new Set([
+  'span', 'td', 'th', 'a', 'p', 'label', 'strong', 'em', 'b', 'i', 'small', 'code',
+]);
+
+// Class patterns that indicate a collection container
+const COLLECTION_CLASS_PATTERNS = [
+  'list', 'items', 'grid', 'table', 'multiselect', 'options', 'menu',
+  'dropdown', 'results', 'rows', 'entries', 'collection',
+];
+
+// Class patterns that indicate a repeated item
+const REPEATED_ITEM_CLASS_PATTERNS = [
+  'item', 'row', 'entry', 'option', 'result', 'card', 'tile', 'cell',
+];
+
 // Dynamic value detection (reused from zeuzFormatter but isolated here)
 function isDynamic(value: string): boolean {
   if (!value) return true;
@@ -51,6 +83,245 @@ function isDynamic(value: string): boolean {
 // Get stable classes (non-dynamic, length > 3)
 function getStableClasses(classes: string[]): string[] {
   return classes.filter(c => !isDynamic(c) && c.length > 3);
+}
+
+/**
+ * Check if a set of classes matches any collection container patterns.
+ */
+function hasCollectionClassPattern(classes: string[]): boolean {
+  const stableClasses = getStableClasses(classes);
+  return stableClasses.some(c => {
+    const lower = c.toLowerCase();
+    return COLLECTION_CLASS_PATTERNS.some(pattern => lower.includes(pattern));
+  });
+}
+
+/**
+ * Check if a set of classes matches any repeated item patterns.
+ */
+function hasRepeatedItemClassPattern(classes: string[]): boolean {
+  const stableClasses = getStableClasses(classes);
+  return stableClasses.some(c => {
+    const lower = c.toLowerCase();
+    return REPEATED_ITEM_CLASS_PATTERNS.some(pattern => lower.includes(pattern));
+  });
+}
+
+/**
+ * Determine if the clicked element is part of a repeated collection structure.
+ * Returns info about the element's role in the collection hierarchy.
+ */
+function classifyElementInCollection(element: EnrichedElement): {
+  isPartOfCollection: boolean;
+  /** 'container' | 'repeated-item' | 'leaf-content' | 'unknown' */
+  role: 'container' | 'repeated-item' | 'leaf-content' | 'unknown';
+} {
+  const tag = element.tag;
+
+  // Direct collection container (e.g., user clicked <ul>, <tbody>)
+  if (COLLECTION_CONTAINER_TAGS.has(tag)) {
+    return { isPartOfCollection: true, role: 'container' };
+  }
+
+  // Repeated item tag (e.g., <li>, <tr>, <option>)
+  if (REPEATED_ITEM_TAGS.has(tag)) {
+    return { isPartOfCollection: true, role: 'repeated-item' };
+  }
+
+  // Leaf content inside a repeated item (e.g., <span>, <td>, <a>)
+  if (LEAF_CONTENT_TAGS.has(tag)) {
+    return { isPartOfCollection: true, role: 'leaf-content' };
+  }
+
+  // Check if the element has multiple same-tag siblings (generic repetition detection)
+  if ((element._sameTagSiblingCount || 0) > 1) {
+    return { isPartOfCollection: true, role: 'repeated-item' };
+  }
+
+  // Check class patterns on the element itself
+  if (hasRepeatedItemClassPattern(element.classes)) {
+    return { isPartOfCollection: true, role: 'repeated-item' };
+  }
+
+  if (hasCollectionClassPattern(element.classes)) {
+    return { isPartOfCollection: true, role: 'container' };
+  }
+
+  // Check if the immediate parent is a known container
+  const ancestors = element._ancestors || [];
+  if (ancestors.length > 0) {
+    const parent = ancestors[0];
+    if (COLLECTION_CONTAINER_TAGS.has(parent.tag) || hasCollectionClassPattern(parent.classes)) {
+      return { isPartOfCollection: true, role: 'repeated-item' };
+    }
+  }
+
+  // For div/span with siblings — treat as repeated items
+  if ((tag === 'div' || tag === 'span') && (element._sameTagSiblingCount || 0) > 1) {
+    return { isPartOfCollection: true, role: 'repeated-item' };
+  }
+
+  return { isPartOfCollection: false, role: 'unknown' };
+}
+
+/**
+ * Find the collection container from ancestors.
+ * Searches for the nearest ancestor that acts as a collection container.
+ * Returns the container and its index in the ancestors array, plus
+ * the ancestor one level above as the "parent wrapper".
+ */
+function findCollectionContainer(
+  element: EnrichedElement,
+  elementRole: 'repeated-item' | 'leaf-content' | 'unknown',
+): {
+  container: { tag: string; id: string; classes: string[]; role?: string } | null;
+  containerIndex: number;
+  parentWrapper: { tag: string; id: string; classes: string[] } | null;
+} {
+  const ancestors = element._ancestors || [];
+
+  // Determine where to start searching based on element role:
+  // - If element is leaf content (e.g., <span> inside <li>), skip the immediate parent
+  //   which is likely the repeated item, and look for the container above it
+  // - If element is the repeated item itself (e.g., <li>), the container is the immediate parent
+  let startIndex = 0;
+
+  if (elementRole === 'leaf-content') {
+    // The immediate parent is likely the repeated item (e.g., <li>).
+    // We need to go one more level up to find the container (e.g., <ul>).
+    // But first check if the immediate parent IS already a container.
+    if (ancestors.length > 0 && COLLECTION_CONTAINER_TAGS.has(ancestors[0].tag)) {
+      // Immediate parent is the container (e.g., element is <li> child of <ul> but we misclassified)
+      startIndex = 0;
+    } else {
+      // Skip the repeated item parent, look for the container above
+      startIndex = 0; // Still start at 0, but prefer containers
+    }
+  }
+
+  // Search for collection container
+  let containerIndex = -1;
+
+  for (let i = startIndex; i < ancestors.length; i++) {
+    const anc = ancestors[i];
+
+    // Direct collection container tag
+    if (COLLECTION_CONTAINER_TAGS.has(anc.tag)) {
+      containerIndex = i;
+      break;
+    }
+
+    // Element with role="listbox", role="list", role="grid", role="tree", role="menu"
+    // Note: We don't have role from ancestor data currently, but check classes
+    // that imply a role-based container
+    if (hasCollectionClassPattern(anc.classes)) {
+      containerIndex = i;
+      break;
+    }
+
+    // A div/section with stable classes containing collection patterns
+    if (anc.tag === 'div' || anc.tag === 'section') {
+      const stableClasses = getStableClasses(anc.classes);
+      if (stableClasses.some(c => {
+        const lower = c.toLowerCase();
+        return COLLECTION_CLASS_PATTERNS.some(pattern => lower.includes(pattern));
+      })) {
+        containerIndex = i;
+        break;
+      }
+    }
+  }
+
+  // If no container found by patterns, use heuristics:
+  // If element is a repeated item with siblings, its direct parent is the container
+  if (containerIndex === -1 && elementRole === 'repeated-item' && ancestors.length > 0) {
+    containerIndex = 0;
+  }
+
+  // If element is leaf content inside a repeated structure,
+  // the container is typically 2 levels up (leaf -> item -> container)
+  if (containerIndex === -1 && elementRole === 'leaf-content' && ancestors.length > 1) {
+    containerIndex = 1;
+  }
+
+  // Fallback: use first ancestor
+  if (containerIndex === -1 && ancestors.length > 0) {
+    containerIndex = 0;
+  }
+
+  if (containerIndex === -1) {
+    return { container: null, containerIndex: -1, parentWrapper: null };
+  }
+
+  const container = ancestors[containerIndex];
+
+  // Parent wrapper is one level above the container
+  const parentWrapper = (containerIndex + 1 < ancestors.length)
+    ? ancestors[containerIndex + 1]
+    : null;
+
+  return { container, containerIndex, parentWrapper };
+}
+
+/**
+ * Determine the target tag and classes for extraction.
+ * When the user clicked a leaf element, use that element's tag/class.
+ * When the user clicked a repeated item, use a meaningful child or the item itself.
+ * When the user clicked a container, infer from children.
+ */
+function determineTarget(
+  element: EnrichedElement,
+  elementRole: 'container' | 'repeated-item' | 'leaf-content' | 'unknown',
+): { targetTag: string; targetClasses: string[] } {
+  if (elementRole === 'leaf-content') {
+    // The clicked element IS the target (e.g., <span> inside <li>)
+    return {
+      targetTag: element.tag,
+      targetClasses: getStableClasses(element.classes),
+    };
+  }
+
+  if (elementRole === 'repeated-item') {
+    // The clicked element is a repeated item (e.g., <li>).
+    // Look at its children to find a better target, or use the item itself.
+    const childTags = element._childTags || [];
+    if (childTags.includes('span')) return { targetTag: 'span', targetClasses: [] };
+    if (childTags.includes('a')) return { targetTag: 'a', targetClasses: [] };
+    if (childTags.includes('td')) return { targetTag: 'td', targetClasses: [] };
+    if (childTags.includes('p')) return { targetTag: 'p', targetClasses: [] };
+    if (childTags.includes('label')) return { targetTag: 'label', targetClasses: [] };
+    if (childTags.includes('div')) return { targetTag: 'div', targetClasses: [] };
+    // If no meaningful children, use the item's own tag
+    return {
+      targetTag: element.tag,
+      targetClasses: getStableClasses(element.classes),
+    };
+  }
+
+  if (elementRole === 'container') {
+    // User clicked a container directly — infer from its children
+    const childTags = element._childTags || [];
+    if (childTags.includes('li')) return { targetTag: 'li', targetClasses: [] };
+    if (childTags.includes('tr')) return { targetTag: 'tr', targetClasses: [] };
+    if (childTags.includes('td')) return { targetTag: 'td', targetClasses: [] };
+    if (childTags.includes('option')) return { targetTag: 'option', targetClasses: [] };
+    if (childTags.includes('span')) return { targetTag: 'span', targetClasses: [] };
+    if (childTags.includes('a')) return { targetTag: 'a', targetClasses: [] };
+    if (childTags.includes('div')) return { targetTag: 'div', targetClasses: [] };
+    if (childTags.length > 0) return { targetTag: childTags[0], targetClasses: [] };
+    // Infer from container tag
+    if (element.tag === 'ul' || element.tag === 'ol') return { targetTag: 'li', targetClasses: [] };
+    if (element.tag === 'tbody' || element.tag === 'table') return { targetTag: 'td', targetClasses: [] };
+    if (element.tag === 'dl') return { targetTag: 'dd', targetClasses: [] };
+    if (element.tag === 'select') return { targetTag: 'option', targetClasses: [] };
+    return { targetTag: 'span', targetClasses: [] };
+  }
+
+  // Unknown role — best guess from element
+  return {
+    targetTag: element.tag,
+    targetClasses: getStableClasses(element.classes),
+  };
 }
 
 /**
@@ -117,7 +388,7 @@ function buildParentRows(parent: { tag: string; id: string; classes: string[] })
   // Class if meaningful
   const stableClasses = getStableClasses(parent.classes);
   if (stableClasses.length > 0) {
-    rows.push({ field: 'class', type: 'parent parameter', value: stableClasses.join(' ') });
+    rows.push({ field: 'class', type: 'parent parameter', value: stableClasses.sort((a, b) => b.length - a.length)[0] });
   }
 
   return rows;
@@ -179,35 +450,6 @@ function generateVariableName(element: EnrichedElement, suffix: string): string 
   return `${base}_${suffix}`.replace(/_{2,}/g, '_').substring(0, 40);
 }
 
-/**
- * Determine the best target parameter for list extraction.
- * Looks at the element's children to determine what to extract.
- * MUST produce a concrete tag name — ZeuZ cannot handle wildcards.
- * Also includes class if the children have meaningful classes.
- */
-function buildTargetParameter(element: EnrichedElement): string {
-  const childTags = element._childTags || [];
-
-  // Determine the target tag
-  let targetTag = 'span'; // default
-  if (childTags.includes('td')) targetTag = 'td';
-  else if (childTags.includes('th')) targetTag = 'th';
-  else if (childTags.includes('li')) targetTag = 'li';
-  else if (childTags.includes('a')) targetTag = 'a';
-  else if (childTags.includes('span')) targetTag = 'span';
-  else if (childTags.includes('p')) targetTag = 'p';
-  else if (childTags.includes('div')) targetTag = 'div';
-  else if (childTags.length > 0) targetTag = childTags[0];
-  else if (element.tag === 'tr') targetTag = 'td';
-  else if (element.tag === 'ul' || element.tag === 'ol') targetTag = 'li';
-  else if (element.tag === 'tbody' || element.tag === 'table') targetTag = 'td';
-  else if (element.tag === 'dl') targetTag = 'dd';
-
-  // Build the target parameter string
-  // Include class="ng-star-inserted" if it's an Angular app (common pattern)
-  return `tag="${targetTag}", class="ng-star-inserted", return="text"`;
-}
-
 // ─── Public API ─────────────────────────────────────────────────────────────────
 
 /**
@@ -248,68 +490,135 @@ export function buildSaveAttributeRows(element: EnrichedElement): ZeuzStoreRow[]
 /**
  * Build ZeuZ rows for "Save Attribute Values in List" action.
  *
+ * For collection-based actions, the logic:
+ * 1. Classifies the clicked element's role (container, repeated-item, or leaf-content)
+ * 2. Finds the nearest collection container (promotes element parameter to the container)
+ * 3. Generates a parent parameter for the wrapper above the container
+ * 4. Uses the clicked element (or an appropriate descendant) as the target parameter
+ *
  * Output format:
- *   tag | parent parameter | tbody
- *   class | parent parameter | p-element p-datatable-tbody
- *   tag | element parameter | tr
- *   index | element parameter | 0
- *   *class | element parameter | ng-star-inserted
- *   attributes | target parameter | tag="td", return="text"
+ *   tag | parent parameter | div
+ *   class | parent parameter | p-multiselect-items-wrapper
+ *   tag | element parameter | ul
+ *   role | element parameter | listbox
+ *   *class | element parameter | p-multiselect-items
+ *   attributes | target parameter | tag="span", class="ng-star-inserted", return="text"
+ *   paired | optional parameter | yes
  *   save attribute values in list | selenium action | generated_list_name
  */
 export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreRow[] {
   const rows: ZeuzStoreRow[] = [];
   const ancestors = element._ancestors || [];
 
-  // ─── Following ZeuZ official doc format: ────────────────────────────────────
-  // element parameter → locate the parent CONTAINER that holds all items
-  // attributes | target parameter → what to extract (tag, class, return)
-  // paired | optional parameter → yes/no
-  // save attribute values in list | selenium action → variable_name
+  // ─── Step 1: Classify the clicked element's role in the collection ──────────
+  const classification = classifyElementInCollection(element);
 
-  const leafTags = new Set(['span', 'td', 'th', 'a', 'p', 'label', 'option', 'li']);
-  const containerTags = new Set(['ul', 'ol', 'tbody', 'table', 'dl', 'select']);
-
-  // Detect if clicked element is a repeated leaf item
-  const isRepeatedItem = (element._sameTagSiblingCount || 0) > 1;
-  const isLeafElement = leafTags.has(element.tag) || isRepeatedItem;
-
-  let containerTag = element.tag;
-  let containerClasses: string[] = getStableClasses(element.classes);
-  let containerRole = element.ariaAttributes?.['role'] || element.attributes?.['role'] || '';
-  let containerId = element.id && !isDynamic(element.id) ? element.id : '';
+  // ─── Step 2: Determine container, parent wrapper, and target ────────────────
+  let containerTag = '';
+  let containerClasses: string[] = [];
+  let containerRole = '';
+  let containerId = '';
+  let parentWrapper: { tag: string; id: string; classes: string[] } | null = null;
   let targetTag = '';
   let targetClasses: string[] = [];
 
-  if (isLeafElement) {
-    // User clicked a leaf item — find the collection container in ancestors
-    targetTag = element.tag;
-    targetClasses = getStableClasses(element.classes);
+  if (classification.role === 'container') {
+    // User clicked directly on a container (e.g., <ul>, <tbody>)
+    containerTag = element.tag;
+    containerClasses = getStableClasses(element.classes);
+    containerRole = element.ariaAttributes?.['role'] || element.attributes?.['role'] || '';
+    containerId = element.id && !isDynamic(element.id) ? element.id : '';
 
-    for (let i = 0; i < ancestors.length; i++) {
-      const anc = ancestors[i];
-      if (containerTags.has(anc.tag) ||
-          getStableClasses(anc.classes).some(c => c.includes('list') || c.includes('items') || c.includes('grid') || c.includes('table') || c.includes('multiselect'))) {
-        containerTag = anc.tag;
-        containerClasses = getStableClasses(anc.classes);
-        containerId = anc.id && !isDynamic(anc.id) ? anc.id : '';
-        containerRole = ''; // We don't have role from ancestor data
-        break;
+    // Parent wrapper is the first ancestor above the container
+    if (ancestors.length > 0) {
+      parentWrapper = ancestors[0];
+    }
+
+    // Target is determined from container's children
+    const target = determineTarget(element, 'container');
+    targetTag = target.targetTag;
+    targetClasses = target.targetClasses;
+
+  } else if (classification.role === 'repeated-item' || classification.role === 'leaf-content') {
+    // User clicked a repeated item (e.g., <li>) or leaf content (e.g., <span> inside <li>)
+    // We need to promote to the collection container
+
+    // Determine target from the clicked element
+    const target = determineTarget(element, classification.role);
+    targetTag = target.targetTag;
+    targetClasses = target.targetClasses;
+
+    // Find the collection container in ancestors
+    const result = findCollectionContainer(element, classification.role);
+
+    if (result.container) {
+      containerTag = result.container.tag;
+      containerClasses = getStableClasses(result.container.classes);
+      containerId = result.container.id && !isDynamic(result.container.id) ? result.container.id : '';
+      containerRole = ''; // ancestor data doesn't include role; rely on tag/class
+      parentWrapper = result.parentWrapper;
+    } else {
+      // Fallback: use the element's immediate parent as container
+      if (ancestors.length > 0) {
+        const parent = ancestors[0];
+        containerTag = parent.tag;
+        containerClasses = getStableClasses(parent.classes);
+        containerId = parent.id && !isDynamic(parent.id) ? parent.id : '';
+        if (ancestors.length > 1) {
+          parentWrapper = ancestors[1];
+        }
+      } else {
+        // No ancestor data — use the element itself as container (degraded mode)
+        containerTag = element.tag;
+        containerClasses = getStableClasses(element.classes);
+        containerId = element.id && !isDynamic(element.id) ? element.id : '';
       }
     }
   } else {
-    // User clicked on a container directly — use children as targets
-    const childTags = element._childTags || [];
-    if (childTags.includes('td')) targetTag = 'td';
-    else if (childTags.includes('li')) targetTag = 'li';
-    else if (childTags.includes('span')) targetTag = 'span';
-    else if (childTags.includes('a')) targetTag = 'a';
-    else if (childTags.includes('option')) targetTag = 'option';
-    else if (childTags.length > 0) targetTag = childTags[0];
-    else targetTag = 'span';
+    // Unknown role — use heuristic: treat as leaf and try to find container
+    const target = determineTarget(element, 'unknown');
+    targetTag = target.targetTag;
+    targetClasses = target.targetClasses;
+
+    // Try to find a container in ancestors
+    const result = findCollectionContainer(element, 'leaf-content');
+    if (result.container) {
+      containerTag = result.container.tag;
+      containerClasses = getStableClasses(result.container.classes);
+      containerId = result.container.id && !isDynamic(result.container.id) ? result.container.id : '';
+      parentWrapper = result.parentWrapper;
+    } else if (ancestors.length > 0) {
+      containerTag = ancestors[0].tag;
+      containerClasses = getStableClasses(ancestors[0].classes);
+      containerId = ancestors[0].id && !isDynamic(ancestors[0].id) ? ancestors[0].id : '';
+      if (ancestors.length > 1) {
+        parentWrapper = ancestors[1];
+      }
+    } else {
+      containerTag = element.tag;
+      containerClasses = getStableClasses(element.classes);
+      containerId = element.id && !isDynamic(element.id) ? element.id : '';
+    }
   }
 
-  // ─── Element parameters: locate the container ──────────────────────────────
+  // ─── Step 3: Build parent parameter rows (wrapper above the container) ─────
+  if (parentWrapper) {
+    const wrapperStableClasses = getStableClasses(parentWrapper.classes);
+    const wrapperId = parentWrapper.id && !isDynamic(parentWrapper.id) ? parentWrapper.id : '';
+
+    // Only emit parent parameter if we have meaningful identifying info
+    if (wrapperId || wrapperStableClasses.length > 0 || parentWrapper.tag !== 'div') {
+      rows.push({ field: 'tag', type: 'parent parameter', value: parentWrapper.tag });
+      if (wrapperId) {
+        rows.push({ field: 'id', type: 'parent parameter', value: wrapperId });
+      }
+      if (wrapperStableClasses.length > 0) {
+        rows.push({ field: 'class', type: 'parent parameter', value: wrapperStableClasses.sort((a, b) => b.length - a.length)[0] });
+      }
+    }
+  }
+
+  // ─── Step 4: Build element parameter rows (the collection container) ───────
   if (containerId) {
     rows.push({ field: 'id', type: 'element parameter', value: containerId });
   }
@@ -323,7 +632,7 @@ export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreR
     rows.push({ field: '*class', type: 'element parameter', value: containerClasses.sort((a, b) => b.length - a.length)[0] });
   }
 
-  // ─── Target parameter: what to extract ─────────────────────────────────────
+  // ─── Step 5: Build target parameter (what to extract from each item) ───────
   let targetStr = `tag="${targetTag}"`;
   if (targetClasses.length > 0) {
     targetStr += `, class="${targetClasses[0]}"`;
