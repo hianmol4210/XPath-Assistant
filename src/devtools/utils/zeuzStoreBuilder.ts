@@ -630,11 +630,8 @@ export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreR
   }
 
   // ─── Step 5: Build target parameter (what to extract from each item) ───────
-  let targetStr = `tag="${targetTag}"`;
-  if (targetClasses.length > 0) {
-    targetStr += `, class="${targetClasses[0]}"`;
-  }
-  targetStr += ', return="text"';
+  // Format: each attribute on its own line (matches ZeuZ UI display)
+  let targetStr = `tag="${targetTag}",\nclass="${targetClasses.length > 0 ? targetClasses[0] : 'ng-star-inserted'}",\nreturn="text"`;
   rows.push({ field: 'attributes', type: 'target parameter', value: targetStr });
 
   // ─── Paired parameter (default yes) ────────────────────────────────────────
