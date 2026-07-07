@@ -491,6 +491,19 @@ export function formatAsZeuzStep(
     }
   }
 
+  // Always include element's class as element parameter for better XPath identification
+  // Use exact 'class' for fully stable values, '*class' (contains) for semi-dynamic
+  if (element.classes.length > 0) {
+    const stableClasses = element.classes.filter(c => !isDynamicValue(c) && c.length > 3);
+    // Check if we already added a class row above
+    const alreadyHasClass = rows.some(r => (r.field === '*class' || r.field === 'class') && r.type === 'element parameter');
+    if (!alreadyHasClass && stableClasses.length > 0) {
+      // Use exact 'class' for fully stable, '*class' for partial match
+      const bestClass = stableClasses.sort((a, b) => b.length - a.length)[0];
+      rows.push({ field: '*class', type: 'element parameter', value: bestClass });
+    }
+  }
+
   // ─── Save parameters (for save-attribute and save-attribute-list) ──────────
 
   if (action === 'save-attribute') {
