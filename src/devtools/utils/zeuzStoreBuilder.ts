@@ -631,13 +631,20 @@ export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreR
 
   // ─── Step 5: Build target parameter (what to extract from each item) ───────
   // Format: each attribute on its own line (matches ZeuZ UI display)
-  // Always include class if available — use exact class for stable, *class for dynamic
+  // Always include class if available — use full class string (all stable classes)
   let classAttr = '';
   if (targetClasses.length > 0) {
-    // Stable class — use exact match
-    classAttr = `class="${targetClasses[0]}"`;
+    // Use all stable classes joined with space (exact match)
+    classAttr = `class="${targetClasses.join(' ')}"`;
+  } else if (element.classes.length > 0) {
+    // Use all non-dynamic classes from the clicked element
+    const allStable = element.classes.filter(c => !isDynamic(c));
+    if (allStable.length > 0) {
+      classAttr = `class="${allStable.join(' ')}"`;
+    } else {
+      classAttr = `class="ng-star-inserted"`;
+    }
   } else {
-    // No stable class from clicked element — use ng-star-inserted as common Angular pattern
     classAttr = `class="ng-star-inserted"`;
   }
   let targetStr = `tag="${targetTag}",\n${classAttr},\nreturn="text"`;
