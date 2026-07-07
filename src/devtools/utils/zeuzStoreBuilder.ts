@@ -261,39 +261,107 @@ export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreR
   const rows: ZeuzStoreRow[] = [];
   const ancestors = element._ancestors || [];
 
-  // ─── Parent parameters: the PARENT of the clicked element (wrapper/container) ───
-  // Use the immediate parent (ancestors[0]) as the parent parameter
-  if (ancestors.length > 0) {
-    const parent = ancestors[0];
-    rows.push({ field: 'tag', type: 'parent parameter', value: parent.tag });
-    const parentStableClasses = getStableClasses(parent.classes);
-    if (parent.id && !isDynamic(parent.id)) {
-      rows.push({ field: 'id', type: 'parent parameter', value: parent.id });
-    } else if (parentStableClasses.length > 0) {
-      rows.push({ field: 'class', type: 'parent parameter', value: parentStableClasses.sort((a, b) => b.length - a.length)[0] });
+  // ─── Smart hierarchy detection for collection-based capture ────────────────
+  // When user clicks a LEAF element (span, td, a, etc.), we need to find:
+  // - The collection CONTAINER (ul, ol, tbody, table, div with role=listbox, etc.)
+  // - Use the container as the "element parameter"
+  // - Use the container's parent as the "parent parameter"
+  // - Use the clicked element's tag/class as the "target parameter"
+
+  const leafTags = new Set(['span', 'td', 'th', 'a', 'p', 'label', 'option', 'li']);
+  const containerTags = new Set(['ul', 'ol', 'tbody', 'table', 'dl', 'select']);
+  
+  let containerAncestor: { tag: string; id: string; classes: string[] } | null = null;
+  let containerParent: { tag: string; id: string; classes: string[] } | null = null;
+  let containerLevel = -1;
+
+  // If clicked element is a leaf, find the collection container in ancestors
+  if (leafTags.has(element.tag)) {
+    for (let i = 0; i < ancestors.length; i++) {
+      const anc = ancestors[i];
+      // Check if this ancestor is a collection container
+      if (containerTags.has(anc.tag)) {
+        containerAncestor = anc;
+        containerLevel = i;
+        // Parent is the one above the container
+        if (i + 1 < ancestors.length) {
+          containerParent = ancestors[i + 1];
+        }
+        break;
+      }
+      // Also check for div/section with role like listbox, grid, tree
+      const stableClasses = getStableClasses(anc.classes);
+      if (anc.tag === 'ul' || anc.tag === 'ol' || 
+          stableClasses.some(c => c.includes('list') || c.includes('items') || c.includes('grid') || c.includes('table'))) {
+        containerAncestor = anc;
+        containerLevel = i;
+        if (i + 1 < ancestors.length) {
+          containerParent = ancestors[i + 1];
+        }
+        break;
+      }
     }
   }
 
-  // ─── Element parameters: the clicked element itself (the list/container) ─────
-  rows.push({ field: 'tag', type: 'element parameter', value: element.tag });
-
-  // Add role if present (e.g., listbox, grid, tree)
-  const role = element.ariaAttributes?.['role'] || element.attributes?.['role'];
-  if (role && !isDynamic(role)) {
-    rows.push({ field: 'role', type: 'element parameter', value: role });
-  }
-
-  // Add stable class if no role
-  if (!role) {
-    const stableClasses = getStableClasses(element.classes);
-    if (stableClasses.length > 0) {
-      rows.push({ field: '*class', type: 'element parameter', value: stableClasses.sort((a, b) => b.length - a.length)[0] });
+  // If we found a collection container, use the correct hierarchy
+  if (containerAncestor && containerParent) {
+    // Parent parameter: the wrapper above the container
+    rows.push({ field: 'tag', type: 'parent parameter', value: containerParent.tag });
+    const parentClasses = getStableClasses(containerParent.classes);
+    if (containerParent.id && !isDynamic(containerParent.id)) {
+      rows.push({ field: 'id', type: 'parent parameter', value: containerParent.id });
+    } else if (parentClasses.length > 0) {
+      rows.push({ field: 'class', type: 'parent parameter', value: parentClasses.sort((a, b) => b.length - a.length)[0] });
     }
-  }
 
-  // ─── Target parameter: what to extract from INSIDE the container ──────────────
-  const target = buildTargetParameter(element);
-  rows.push({ field: 'attributes', type: 'target parameter', value: target });
+    // Element parameter: the collection container
+    rows.push({ field: 'tag', type: 'element parameter', value: containerAncestor.tag });
+    // Add role if available from the container's attributes (we have classes at least)
+    const containerClasses = getStableClasses(containerAncestor.classes);
+    if (containerClasses.length > 0) {
+      rows.push({ field: '*class', type: 'element parameter', value: containerClasses.sort((a, b) => b.length - a.length)[0] });
+    }
+
+    // Target parameter: use the clicked element's tag and class
+    const targetTag = element.tag;
+    const targetClasses = getStableClasses(element.classes);
+    let targetStr = `tag="${targetTag}"`;
+    if (targetClasses.length > 0) {
+      targetStr += `, class="${targetClasses[0]}"`;
+    }
+    targetStr += ', return="text"';
+    rows.push({ field: 'attributes', type: 'target parameter', value: targetStr });
+
+  } else {
+    // Fallback: clicked element IS the container (e.g., user clicked the ul directly)
+    // Parent = immediate parent
+    if (ancestors.length > 0) {
+      const parent = ancestors[0];
+      rows.push({ field: 'tag', type: 'parent parameter', value: parent.tag });
+      const parentClasses = getStableClasses(parent.classes);
+      if (parent.id && !isDynamic(parent.id)) {
+        rows.push({ field: 'id', type: 'parent parameter', value: parent.id });
+      } else if (parentClasses.length > 0) {
+        rows.push({ field: 'class', type: 'parent parameter', value: parentClasses.sort((a, b) => b.length - a.length)[0] });
+      }
+    }
+
+    // Element = the clicked container
+    rows.push({ field: 'tag', type: 'element parameter', value: element.tag });
+    const role = element.ariaAttributes?.['role'] || element.attributes?.['role'];
+    if (role && !isDynamic(role)) {
+      rows.push({ field: 'role', type: 'element parameter', value: role });
+    } else {
+      const stableClasses = getStableClasses(element.classes);
+      if (stableClasses.length > 0) {
+        rows.push({ field: '*class', type: 'element parameter', value: stableClasses.sort((a, b) => b.length - a.length)[0] });
+      }
+    }
+
+    // Target = children
+    const target = buildTargetParameter(element);
+    rows.push({ field: 'attributes', type: 'target parameter', value: target });
+  }
 
   // ─── Action row ───────────────────────────────────────────────────────────────
   const listName = generateVariableName(element, 'list');
