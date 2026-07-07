@@ -200,32 +200,29 @@ function findCollectionContainer(
   }
 
   // Search for collection container
+  // IMPORTANT: Prefer known container TAGS (ul, ol, tbody) over class-based detection
+  // to avoid matching single-item wrappers like <p-multiselectitem>
   let containerIndex = -1;
 
+  // First pass: look ONLY for known collection container tags (most reliable)
   for (let i = startIndex; i < ancestors.length; i++) {
     const anc = ancestors[i];
-
-    // Direct collection container tag
     if (COLLECTION_CONTAINER_TAGS.has(anc.tag)) {
       containerIndex = i;
       break;
     }
+  }
 
-    // Element with role="listbox", role="list", role="grid", role="tree", role="menu"
-    // Note: We don't have role from ancestor data currently, but check classes
-    // that imply a role-based container
-    if (hasCollectionClassPattern(anc.classes)) {
-      containerIndex = i;
-      break;
-    }
+  // Second pass: if no known container tag found, look for class-based containers
+  // but only on div/section elements (not on repeated item wrappers)
+  if (containerIndex === -1) {
+    for (let i = startIndex; i < ancestors.length; i++) {
+      const anc = ancestors[i];
+      // Skip elements that look like individual item wrappers
+      if (REPEATED_ITEM_TAGS.has(anc.tag)) continue;
+      if (hasRepeatedItemClassPattern(anc.classes)) continue;
 
-    // A div/section with stable classes containing collection patterns
-    if (anc.tag === 'div' || anc.tag === 'section') {
-      const stableClasses = getStableClasses(anc.classes);
-      if (stableClasses.some(c => {
-        const lower = c.toLowerCase();
-        return COLLECTION_CLASS_PATTERNS.some(pattern => lower.includes(pattern));
-      })) {
+      if ((anc.tag === 'div' || anc.tag === 'section') && hasCollectionClassPattern(anc.classes)) {
         containerIndex = i;
         break;
       }
