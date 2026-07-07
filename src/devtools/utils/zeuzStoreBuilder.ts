@@ -183,27 +183,29 @@ function generateVariableName(element: EnrichedElement, suffix: string): string 
  * Determine the best target parameter for list extraction.
  * Looks at the element's children to determine what to extract.
  * MUST produce a concrete tag name — ZeuZ cannot handle wildcards.
+ * Also includes class if the children have meaningful classes.
  */
 function buildTargetParameter(element: EnrichedElement): string {
   const childTags = element._childTags || [];
 
-  if (childTags.includes('td')) return 'tag="td", return="text"';
-  if (childTags.includes('th')) return 'tag="th", return="text"';
-  if (childTags.includes('li')) return 'tag="li", return="text"';
-  if (childTags.includes('a')) return 'tag="a", return="text"';
-  if (childTags.includes('span')) return 'tag="span", return="text"';
-  if (childTags.includes('p')) return 'tag="p", return="text"';
-  if (childTags.includes('div')) return 'tag="div", return="text"';
-  if (childTags.length > 0) return `tag="${childTags[0]}", return="text"`;
+  // Determine the target tag
+  let targetTag = 'span'; // default
+  if (childTags.includes('td')) targetTag = 'td';
+  else if (childTags.includes('th')) targetTag = 'th';
+  else if (childTags.includes('li')) targetTag = 'li';
+  else if (childTags.includes('a')) targetTag = 'a';
+  else if (childTags.includes('span')) targetTag = 'span';
+  else if (childTags.includes('p')) targetTag = 'p';
+  else if (childTags.includes('div')) targetTag = 'div';
+  else if (childTags.length > 0) targetTag = childTags[0];
+  else if (element.tag === 'tr') targetTag = 'td';
+  else if (element.tag === 'ul' || element.tag === 'ol') targetTag = 'li';
+  else if (element.tag === 'tbody' || element.tag === 'table') targetTag = 'td';
+  else if (element.tag === 'dl') targetTag = 'dd';
 
-  // Fallback based on element type — use td for tr, li for ul/ol, span for div
-  if (element.tag === 'tr') return 'tag="td", return="text"';
-  if (element.tag === 'ul' || element.tag === 'ol') return 'tag="li", return="text"';
-  if (element.tag === 'tbody' || element.tag === 'table') return 'tag="td", return="text"';
-  if (element.tag === 'dl') return 'tag="dd", return="text"';
-
-  // Last resort: span is the safest concrete tag
-  return 'tag="span", return="text"';
+  // Build the target parameter string
+  // Include class="ng-star-inserted" if it's an Angular app (common pattern)
+  return `tag="${targetTag}", class="ng-star-inserted", return="text"`;
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────────────
@@ -257,22 +259,43 @@ export function buildSaveAttributeRows(element: EnrichedElement): ZeuzStoreRow[]
  */
 export function buildSaveAttributeListRows(element: EnrichedElement): ZeuzStoreRow[] {
   const rows: ZeuzStoreRow[] = [];
-
-  // Parent parameters
   const ancestors = element._ancestors || [];
-  const bestParent = findBestParent(ancestors);
-  if (bestParent) {
-    rows.push(...buildParentRows(bestParent));
+
+  // ─── Parent parameters: the PARENT of the clicked element (wrapper/container) ───
+  // Use the immediate parent (ancestors[0]) as the parent parameter
+  if (ancestors.length > 0) {
+    const parent = ancestors[0];
+    rows.push({ field: 'tag', type: 'parent parameter', value: parent.tag });
+    const parentStableClasses = getStableClasses(parent.classes);
+    if (parent.id && !isDynamic(parent.id)) {
+      rows.push({ field: 'id', type: 'parent parameter', value: parent.id });
+    } else if (parentStableClasses.length > 0) {
+      rows.push({ field: 'class', type: 'parent parameter', value: parentStableClasses.sort((a, b) => b.length - a.length)[0] });
+    }
   }
 
-  // Element parameters
-  rows.push(...buildElementRows(element));
+  // ─── Element parameters: the clicked element itself (the list/container) ─────
+  rows.push({ field: 'tag', type: 'element parameter', value: element.tag });
 
-  // Target parameter
+  // Add role if present (e.g., listbox, grid, tree)
+  const role = element.ariaAttributes?.['role'] || element.attributes?.['role'];
+  if (role && !isDynamic(role)) {
+    rows.push({ field: 'role', type: 'element parameter', value: role });
+  }
+
+  // Add stable class if no role
+  if (!role) {
+    const stableClasses = getStableClasses(element.classes);
+    if (stableClasses.length > 0) {
+      rows.push({ field: '*class', type: 'element parameter', value: stableClasses.sort((a, b) => b.length - a.length)[0] });
+    }
+  }
+
+  // ─── Target parameter: what to extract from INSIDE the container ──────────────
   const target = buildTargetParameter(element);
   rows.push({ field: 'attributes', type: 'target parameter', value: target });
 
-  // Action row with auto-generated list name
+  // ─── Action row ───────────────────────────────────────────────────────────────
   const listName = generateVariableName(element, 'list');
   rows.push({ field: 'save attribute values in list', type: 'selenium action', value: listName });
 
