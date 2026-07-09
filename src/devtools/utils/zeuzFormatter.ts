@@ -372,12 +372,16 @@ function buildLocatorFromRows(rows: ZeuzRow[], elementTag: string): string {
     }
   }
 
-  // Build xpath — combine ALL conditions on the same element (no parent//child separation)
-  // because our parent parameter refers to the element's own context, not a separate ancestor
-  const allConditions = [...parentConditions, ...elementConditions];
-  
-  if (allConditions.length > 0) {
-    return `//${tag}[${allConditions.join(' and ')}]`;
+  // Build xpath — parent parameters go to ancestor, element parameters go to target
+  if (parentConditions.length > 0 && elementConditions.length > 0) {
+    // Parent on ancestor, element on target: //*[parent conditions]//tag[element conditions]
+    return `//*[${parentConditions.join(' and ')}]//${tag}[${elementConditions.join(' and ')}]`;
+  } else if (parentConditions.length > 0) {
+    // Only parent conditions — target is just the tag under the parent
+    return `//*[${parentConditions.join(' and ')}]//${tag}`;
+  } else if (elementConditions.length > 0) {
+    // Only element conditions — no parent context
+    return `//${tag}[${elementConditions.join(' and ')}]`;
   }
 
   return `//${tag}`;
