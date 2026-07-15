@@ -20,6 +20,7 @@ import { ActionType } from './actionRecommender';
 export type ZeuzParameterType =
   | 'element parameter'
   | 'parent parameter'
+  | 'sibling parameter'
   | 'save parameter'
   | 'target parameter'
   | 'selenium action'
@@ -327,7 +328,8 @@ function buildLocatorFromRows(rows: ZeuzRow[], elementTag: string): string {
   for (const row of rows) {
     // Skip non-locator rows
     if (row.type === 'selenium action' || row.type === 'optional option' ||
-        row.type === 'save parameter' || row.type === 'target parameter') continue;
+        row.type === 'save parameter' || row.type === 'target parameter' ||
+        row.type === 'sibling parameter') continue;
 
     if (row.type === 'parent parameter') {
       if (row.field === 'tag') {
@@ -414,8 +416,13 @@ export function formatAsZeuzStep(
   // ─── Element parameters (identify the target) ──────────────────────────────
 
   // Text — primary identifier (use *text for contains matching in ZeuZ)
+  // For save-attribute-list, text is used as a sibling parameter (identifies context)
   if (element.text && element.text.length > 0) {
-    rows.push({ field: '*text', type: 'element parameter', value: element.text });
+    if (action === 'save-attribute-list') {
+      rows.push({ field: '*text', type: 'sibling parameter', value: element.text });
+    } else {
+      rows.push({ field: '*text', type: 'element parameter', value: element.text });
+    }
   }
 
   // Tag — useful for ZeuZ to know element type
@@ -513,12 +520,25 @@ export function formatAsZeuzStep(
   if (action === 'save-attribute') {
     // Add save parameter row with auto-generated variable name
     const varName = generateLocatorName(element).replace('xpath_', '') + '_value';
-    rows.push({ field: 'text', type: 'save parameter' as any, value: varName });
+    rows.push({ field: 'text', type: 'save parameter', value: varName });
   }
 
   if (action === 'save-attribute-list') {
-    // Add target parameter for list extraction
-    rows.push({ field: 'attributes', type: 'target parameter' as any, value: 'tag="td", return="text"' });
+    // For save attribute values in list:
+    // - *text as sibling parameter identifies the label/context element
+    // - attributes as target parameter specifies what child elements to extract from
+    // Format: *class="<class>", tag="<tag>", return="<attribute>"
+    const targetAttrs: string[] = [];
+    if (element.classes.length > 0) {
+      const stableClass = element.classes.filter(c => !isDynamicValue(c) && c.length > 3)
+        .sort((a, b) => b.length - a.length)[0];
+      if (stableClass) {
+        targetAttrs.push(`*class="${stableClass}"`);
+      }
+    }
+    targetAttrs.push(`tag="${element.tag}"`);
+    targetAttrs.push('return="text"');
+    rows.push({ field: 'attributes', type: 'target parameter', value: targetAttrs.join(', ') });
   }
 
   // ─── Optional options ──────────────────────────────────────────────────────
