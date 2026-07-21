@@ -120,6 +120,8 @@ function getActionRow(action: ActionType): ZeuzRow {
       return { field: 'save attribute', type: 'selenium action', value: 'save attribute' };
     case 'save-attribute-list':
       return { field: 'save attribute values in list', type: 'selenium action', value: '%|list_variable_name|%' };
+    case 'drag-and-drop':
+      return { field: 'drag and drop', type: 'selenium action', value: 'drag and drop' };
     case 'verify-exists':
       return { field: 'verify', type: 'selenium action', value: 'element exists' };
     case 'verify-text':

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../../store';
 import { copyAllSteps } from '../../utils/zeuzFormatter';
 import { StepRow } from './StepRow';
+import { MultiCaptureProgress } from './MultiCaptureProgress';
 
 function copyToClipboard(text: string): boolean {
   try {
@@ -72,16 +73,22 @@ export const ActionBuilder: React.FC = () => {
 
   if (steps.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <p className="text-sm text-text-muted">
-          Start capturing elements to build automation steps
-        </p>
+      <div className="flex flex-col h-full">
+        <MultiCaptureProgress />
+        <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
+          <p className="text-sm text-text-muted">
+            Start capturing elements to build automation steps
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full">
+      {/* Multi-capture progress panel — visible only during active multi-capture */}
+      <MultiCaptureProgress />
+
       {/* Header with Select All + Copy buttons */}
       <div className="flex items-center gap-3 px-3 py-2 border-b border-surface/50 bg-surface-mid sticky top-0 z-5">
         {/* Select All checkbox */}

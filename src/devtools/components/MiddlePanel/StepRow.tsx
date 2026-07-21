@@ -29,6 +29,7 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: 'verify-visible', label: 'Verify Visible' },
   { value: 'save-attribute', label: 'Save Attribute' },
   { value: 'save-attribute-list', label: 'Save Attribute Values in List' },
+  { value: 'drag-and-drop', label: 'Drag and Drop' },
 ];
 
 /**
@@ -341,7 +342,7 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           )}
         </div>
 
-        {/* Full XPath on its own line — wraps, fully selectable, CLICK to highlight */}
+        {/* Primary locator (src / target) */}
         <div
           className={`text-xs font-mono break-all select-all cursor-pointer p-1.5 rounded bg-surface hover:ring-1 hover:ring-primary-500 ${
             step.selector.matchCount === 1 ? 'text-success' :
@@ -349,7 +350,6 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            // Use _smartXpath for highlighting (verified unique on live DOM)
             const xpath = (step.element as any)?._smartXpath || step.zeuzStep.locator;
             const xpathStr = JSON.stringify(xpath);
             try {
@@ -389,8 +389,63 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
           }}
           title="Click to highlight element on page"
         >
+          {(step.action === 'drag-and-drop' || (step.zeuzStep as any).locator2)
+            ? <span className="text-text-muted text-[10px] mr-1">src:</span>
+            : null}
           {step.zeuzStep.locator}
         </div>
+
+        {/* Secondary locator (dst / container) — only for multi-capture steps */}
+        {(step.zeuzStep as any).locator2 && (
+          <div
+            className="mt-1 text-xs font-mono break-all select-all cursor-pointer p-1.5 rounded bg-surface hover:ring-1 hover:ring-warning text-warning"
+            onClick={(e) => {
+              e.stopPropagation();
+              const xpath = (step.zeuzStep as any).locator2 as string;
+              const xpathStr = JSON.stringify(xpath);
+              try {
+                chrome.devtools.inspectedWindow.eval(`
+                  (function() {
+                    var xpath = ${xpathStr};
+                    function tryHighlight(doc) {
+                      try {
+                        var result = doc.evaluate(xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                        var el = result.singleNodeValue;
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          setTimeout(function() {
+                            var rect = el.getBoundingClientRect();
+                            var hl = doc.createElement('div');
+                            hl.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:3px solid #f59e0b;background:rgba(245,158,11,0.2);border-radius:4px;transition:opacity 0.5s;';
+                            hl.style.top=rect.top+'px';hl.style.left=rect.left+'px';
+                            hl.style.width=rect.width+'px';hl.style.height=rect.height+'px';
+                            doc.documentElement.appendChild(hl);
+                            setTimeout(function(){hl.style.opacity='0';},2000);
+                            setTimeout(function(){hl.remove();},2500);
+                          }, 300);
+                          return true;
+                        }
+                      } catch(e) {}
+                      return false;
+                    }
+                    if (tryHighlight(document)) return 'found';
+                    var iframes = document.querySelectorAll('iframe');
+                    for (var i = 0; i < iframes.length; i++) {
+                      try { if (iframes[i].contentDocument && tryHighlight(iframes[i].contentDocument)) return 'found'; } catch(e) {}
+                    }
+                    return 'not_found';
+                  })();
+                `);
+              } catch (err) {}
+            }}
+            title={`Click to highlight ${step.action === 'drag-and-drop' ? 'destination' : 'container'} element on page`}
+          >
+            <span className="text-text-muted text-[10px] mr-1">
+              {step.action === 'drag-and-drop' ? 'dst:' : 'container:'}
+            </span>
+            {(step.zeuzStep as any).locator2}
+          </div>
+        )}
 
         {/* Copy XPath button */}
         <div className="flex justify-end mt-1.5">

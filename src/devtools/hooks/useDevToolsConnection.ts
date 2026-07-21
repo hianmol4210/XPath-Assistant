@@ -16,6 +16,7 @@ import { useStore } from '../store';
 import { generateSelector } from '../utils/xpathGenerator';
 import { recommendAction } from '../utils/actionRecommender';
 import { formatAsZeuzStep } from '../utils/zeuzFormatter';
+import { buildDragDropStep, toZeuzStep, generateVarName } from '../utils/zeuzMultiFormatter';
 
 export interface DevToolsConnection {
   startCapture: () => void;
@@ -599,24 +600,140 @@ export function useDevToolsConnection(): DevToolsConnection {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isCapturingRef = useRef(false);
 
-  const addStep = useStore((s) => s.addStep);
-  const setSelectedElement = useStore((s) => s.setSelectedElement);
-  const steps = useStore((s) => s.steps);
-  const settings = useStore((s) => s.settings);
-  const captureMode = useStore((s) => s.captureMode);
+  const addStep            = useStore(s => s.addStep);
+  const setSelectedElement = useStore(s => s.setSelectedElement);
+  const steps              = useStore(s => s.steps);
+  const settings           = useStore(s => s.settings);
+  const captureMode        = useStore(s => s.captureMode);
 
-  const stepsRef = useRef(steps);
-  const settingsRef = useRef(settings);
+  // Multi-capture state
+  const multiCapturePhase      = useStore(s => s.multiCapturePhase);
+  const multiCaptureAction     = useStore(s => s.multiCaptureAction);
+  const multiCaptureSelection1 = useStore(s => s.multiCaptureSelection1);
+  const setSelection1          = useStore(s => s.setMultiCaptureSelection1);
+  const setSelection2          = useStore(s => s.setMultiCaptureSelection2);
+  const resetMultiCapture      = useStore(s => s.resetMultiCapture);
 
-  useEffect(() => { stepsRef.current = steps; }, [steps]);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  // Refs to avoid stale closures inside polling callback
+  const stepsRef               = useRef(steps);
+  const settingsRef            = useRef(settings);
+  const multiCapturePhaseRef   = useRef(multiCapturePhase);
+  const multiCaptureActionRef  = useRef(multiCaptureAction);
+  const selection1Ref          = useRef(multiCaptureSelection1);
 
-  // Check if chrome.devtools is available
+  useEffect(() => { stepsRef.current = steps; },                         [steps]);
+  useEffect(() => { settingsRef.current = settings; },                   [settings]);
+  useEffect(() => { multiCapturePhaseRef.current = multiCapturePhase; }, [multiCapturePhase]);
+  useEffect(() => { multiCaptureActionRef.current = multiCaptureAction; },[multiCaptureAction]);
+  useEffect(() => { selection1Ref.current = multiCaptureSelection1; },   [multiCaptureSelection1]);
+
   const isConnected = typeof chrome !== 'undefined' && !!chrome.devtools?.inspectedWindow;
 
-  // Process a captured element — also evaluates XPath match count on the page
+  // ── Overlay colour feedback for multi-capture phase ──────────────────────────
+  useEffect(() => {
+    if (!isConnected) return;
+    try {
+      if (multiCapturePhase === 'waitingForFirst') {
+        chrome.devtools.inspectedWindow.eval(`
+          (function(){var o=document.getElementById('__qa-automation-picker-overlay__');
+          if(o){o.style.border='2px solid #a855f7';o.style.background='rgba(168,85,247,0.12)';}})();
+        `);
+      } else if (multiCapturePhase === 'waitingForSecond') {
+        chrome.devtools.inspectedWindow.eval(`
+          (function(){var o=document.getElementById('__qa-automation-picker-overlay__');
+          if(o){o.style.border='2px solid #f59e0b';o.style.background='rgba(245,158,11,0.12)';}})();
+        `);
+      } else if (multiCapturePhase === 'idle') {
+        chrome.devtools.inspectedWindow.eval(`
+          (function(){var o=document.getElementById('__qa-automation-picker-overlay__');
+          if(o){o.style.border='2px solid #3b82f6';o.style.background='rgba(59,130,246,0.1)';}})();
+        `);
+      }
+    } catch (_) {}
+  }, [multiCapturePhase, isConnected]);
+
+  // ── Process a single captured element ────────────────────────────────────────
   const processElement = useCallback(async (element: CapturedElement) => {
-    const selector = generateSelector(element);
+    const phase       = multiCapturePhaseRef.current;
+    const multiAction = multiCaptureActionRef.current;
+
+    // ── Multi-capture: selection 1 ──
+    if (phase === 'waitingForFirst') {
+      setSelection1(element);
+      setSelectedElement(element);
+
+      // Flash green → amber on page overlay
+      try {
+        chrome.devtools.inspectedWindow.eval(`
+          (function(){
+            var o=document.getElementById('__qa-automation-picker-overlay__');
+            if(!o) return;
+            o.style.border='2px solid #22c55e';o.style.background='rgba(34,197,94,0.15)';
+            setTimeout(function(){
+              o.style.border='2px solid #f59e0b';o.style.background='rgba(245,158,11,0.12)';
+            },600);
+          })();
+        `);
+      } catch (_) {}
+      return;
+    }
+
+    // ── Multi-capture: selection 2 ──
+    if (phase === 'waitingForSecond') {
+      const sel1 = selection1Ref.current;
+      if (!sel1 || !multiAction) { resetMultiCapture(); return; }
+
+      const autoVarName = generateVarName(element, multiAction === 'drag-and-drop' ? 'dst' : 'list');
+
+      if (multiAction === 'drag-and-drop') {
+        const stepNumber = stepsRef.current.length + 1;
+        const multi      = buildDragDropStep(stepNumber, sel1, element);
+        const zeuzStep   = toZeuzStep(multi, stepNumber);
+        const selector   = generateSelector(sel1);
+        selector.matchCount = -1;
+
+        setSelection2(element, autoVarName);
+        addStep(sel1, 'drag-and-drop', selector, zeuzStep as any);
+        setSelectedElement(element);
+        setTimeout(() => resetMultiCapture(), 100);
+
+        // Flash green completion
+        try {
+          chrome.devtools.inspectedWindow.eval(`
+            (function(){
+              var o=document.getElementById('__qa-automation-picker-overlay__');
+              if(!o) return;
+              o.style.border='2px solid #22c55e';o.style.background='rgba(34,197,94,0.15)';
+              setTimeout(function(){
+                o.style.border='2px solid #3b82f6';o.style.background='rgba(59,130,246,0.1)';
+              },500);
+            })();
+          `);
+        } catch (_) {}
+      } else {
+        // Save-attribute-list: go to awaitingConfirm phase
+        setSelection2(element, autoVarName);
+        setSelectedElement(element);
+
+        // Flash amber → stays amber until user clicks Generate
+        try {
+          chrome.devtools.inspectedWindow.eval(`
+            (function(){
+              var o=document.getElementById('__qa-automation-picker-overlay__');
+              if(!o) return;
+              o.style.border='2px solid #22c55e';o.style.background='rgba(34,197,94,0.15)';
+              setTimeout(function(){
+                o.style.border='2px solid #f59e0b';o.style.background='rgba(245,158,11,0.12)';
+              },600);
+            })();
+          `);
+        } catch (_) {}
+      }
+      return;
+    }
+
+    // ── Normal single-capture processing (phase === 'idle') ───────────────────
+    const selector   = generateSelector(element);
     const stepNumber = stepsRef.current.length + 1;
 
     // ─── Special handling for iframe elements ─────────────────────────────────
@@ -666,11 +783,11 @@ export function useDevToolsConnection(): DevToolsConnection {
     }
 
     // ─── Normal element processing ────────────────────────────────────────────
-    const actionRec = recommendAction(element);
-    const action = actionRec.primary;
+    const actionRec    = recommendAction(element);
+    const singleAction = actionRec.primary;
 
     // Format as ZeuZ step first (to get the locator)
-    const zeuzStep = formatAsZeuzStep(element, action, stepNumber, {
+    const zeuzStep = formatAsZeuzStep(element, singleAction, stepNumber, {
       defaultWait: settingsRef.current.defaultWait,
     });
 
@@ -695,9 +812,9 @@ export function useDevToolsConnection(): DevToolsConnection {
       selector.matchCount = isNaN(matchCount) ? -1 : matchCount;
     }
 
-    addStep(element, action, selector, zeuzStep);
+    addStep(element, singleAction, selector, zeuzStep);
     setSelectedElement(element);
-  }, [addStep, setSelectedElement]);
+  }, [addStep, setSelectedElement, setSelection1, setSelection2, resetMultiCapture]);
 
   // Deduplication: track last capture to prevent double captures
   const lastCaptureTimestampRef = useRef(0);

@@ -6,6 +6,7 @@
  * - Steps slice: steps array and add/remove/update/reorder/clear actions
  * - Settings slice: defaultWait, xpathStrategy, autoSuggest, theme
  * - UI slice: selectedStepId, selectedElement, searchQuery, panelSizes
+ * - MultiCapture slice: two-click capture workflow for drag-drop and save-attribute-list
  */
 
 import { create, StateCreator } from 'zustand';
@@ -174,7 +175,7 @@ export interface UISlice {
   uncheckAllSteps: () => void;
 }
 
-const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get) => ({
+const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, _get) => ({
   selectedStepId: null,
   selectedElement: null,
   searchQuery: '',
@@ -202,9 +203,95 @@ const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get) => ({
   uncheckAllSteps: () => set({ checkedStepIds: new Set() }),
 });
 
+// ─── Multi-Capture Slice ────────────────────────────────────────────────────────
+//
+// State machine:
+//   idle  →  (startMultiCapture)  →  waitingForFirst
+//   waitingForFirst  →  (setSelection1)  →  waitingForSecond
+//   waitingForSecond  →  (setSelection2)  →  awaitingConfirm   [save-attr only]
+//   waitingForSecond  →  (setSelection2)  →  idle              [drag-drop: auto-generates]
+//   awaitingConfirm  →  (setVariableName / confirmGenerate)  →  idle
+//   any state  →  (resetMultiCapture)  →  idle
+
+export type MultiCaptureAction = 'save-attribute-list' | 'drag-and-drop';
+
+export type MultiCapturePhase =
+  | 'idle'
+  | 'waitingForFirst'   // picker active, waiting for click 1
+  | 'waitingForSecond'  // selection 1 done, waiting for click 2
+  | 'awaitingConfirm';  // both captured, showing var-name field (save-attr only)
+
+export interface MultiCaptureSlice {
+  /** Which action is being captured */
+  multiCaptureAction: MultiCaptureAction | null;
+  /** Current phase of the workflow */
+  multiCapturePhase: MultiCapturePhase;
+  /** First captured element */
+  multiCaptureSelection1: CapturedElement | null;
+  /** Second captured element */
+  multiCaptureSelection2: CapturedElement | null;
+  /** Auto-generated variable name, editable by user (save-attr only) */
+  multiCaptureVarName: string;
+
+  /** Begin a multi-capture workflow */
+  startMultiCapture: (action: MultiCaptureAction) => void;
+  /** Called when the user captures the first element */
+  setMultiCaptureSelection1: (element: CapturedElement) => void;
+  /** Called when the user captures the second element */
+  setMultiCaptureSelection2: (element: CapturedElement, autoVarName: string) => void;
+  /** Update the variable name in the confirm screen */
+  setMultiCaptureVarName: (name: string) => void;
+  /** Cancel and return to idle — clears everything */
+  resetMultiCapture: () => void;
+}
+
+const MULTI_CAPTURE_IDLE: Omit<MultiCaptureSlice,
+  'startMultiCapture' | 'setMultiCaptureSelection1' | 'setMultiCaptureSelection2' |
+  'setMultiCaptureVarName' | 'resetMultiCapture'
+> = {
+  multiCaptureAction: null,
+  multiCapturePhase: 'idle',
+  multiCaptureSelection1: null,
+  multiCaptureSelection2: null,
+  multiCaptureVarName: '',
+};
+
+const createMultiCaptureSlice: StateCreator<AppState, [], [], MultiCaptureSlice> = (set) => ({
+  ...MULTI_CAPTURE_IDLE,
+
+  startMultiCapture: (action) => set({
+    multiCaptureAction: action,
+    multiCapturePhase: 'waitingForFirst',
+    multiCaptureSelection1: null,
+    multiCaptureSelection2: null,
+    multiCaptureVarName: '',
+  }),
+
+  setMultiCaptureSelection1: (element) => set({
+    multiCaptureSelection1: element,
+    multiCapturePhase: 'waitingForSecond',
+  }),
+
+  setMultiCaptureSelection2: (element, autoVarName) => set((state) => {
+    // drag-and-drop: go straight to idle (caller will addStep before this)
+    // save-attribute-list: go to awaitingConfirm so user can edit var name
+    const nextPhase: MultiCapturePhase =
+      state.multiCaptureAction === 'save-attribute-list' ? 'awaitingConfirm' : 'idle';
+    return {
+      multiCaptureSelection2: element,
+      multiCapturePhase: nextPhase,
+      multiCaptureVarName: autoVarName,
+    };
+  }),
+
+  setMultiCaptureVarName: (name) => set({ multiCaptureVarName: name }),
+
+  resetMultiCapture: () => set({ ...MULTI_CAPTURE_IDLE }),
+});
+
 // ─── Combined AppState ──────────────────────────────────────────────────────────
 
-export type AppState = CaptureSlice & StepsSlice & SettingsSlice & UISlice;
+export type AppState = CaptureSlice & StepsSlice & SettingsSlice & UISlice & MultiCaptureSlice;
 
 // ─── Store ──────────────────────────────────────────────────────────────────────
 
@@ -213,4 +300,5 @@ export const useStore = create<AppState>()((...args) => ({
   ...createStepsSlice(...args),
   ...createSettingsSlice(...args),
   ...createUISlice(...args),
+  ...createMultiCaptureSlice(...args),
 }));

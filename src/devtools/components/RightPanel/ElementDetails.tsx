@@ -180,6 +180,10 @@ export const ElementDetails: React.FC = () => {
   const classStr = element.classes.join(' ');
   const zeuzText = copyZeuzStep(zeuzStep);
 
+  // Multi-capture steps store a secondary locator on the zeuzStep object
+  const locator2 = (zeuzStep as any).locator2 as string | undefined;
+  const isMultiCapture = !!locator2;
+
   return (
     <div className="flex flex-col h-full overflow-y-auto p-3 gap-3">
       {/* Section 1: Basic Info */}
@@ -200,7 +204,9 @@ export const ElementDetails: React.FC = () => {
         <div className="space-y-1">
           {/* Recommended XPath with badges */}
           <div className="flex items-start gap-2 py-1">
-            <span className="text-xs text-text-muted w-24 flex-shrink-0 pt-0.5">Recommended</span>
+            <span className="text-xs text-text-muted w-24 flex-shrink-0 pt-0.5">
+              {isMultiCapture ? 'Source XPath' : 'Recommended'}
+            </span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <ConfidenceBadge confidence={selector.confidence} />
@@ -215,10 +221,29 @@ export const ElementDetails: React.FC = () => {
             </div>
           </div>
 
-          <SelectorRow label="Relative XPath" value={selector.relativeXpath} />
-          <SelectorRow label="Absolute XPath" value={selector.absoluteXpath} />
-          <SelectorRow label="CSS Selector" value={selector.cssSelector} />
-          <SelectorRow label="Parent XPath" value={selector.parentXpath} />
+          {/* Second locator for multi-capture steps (drag-drop dst / save-list container) */}
+          {isMultiCapture && locator2 && (
+            <div className="flex items-start gap-2 py-1">
+              <span className="text-xs text-text-muted w-24 flex-shrink-0 pt-0.5">
+                {selectedStep.action === 'drag-and-drop' ? 'Dest XPath' : 'Container'}
+              </span>
+              <div className="flex items-start gap-1 flex-1">
+                <span className="text-xs text-warning font-mono break-all bg-surface p-1 rounded flex-1">
+                  {locator2}
+                </span>
+                <CopyButton text={locator2} />
+              </div>
+            </div>
+          )}
+
+          {!isMultiCapture && (
+            <>
+              <SelectorRow label="Relative XPath" value={selector.relativeXpath} />
+              <SelectorRow label="Absolute XPath" value={selector.absoluteXpath} />
+              <SelectorRow label="CSS Selector" value={selector.cssSelector} />
+              <SelectorRow label="Parent XPath" value={selector.parentXpath} />
+            </>
+          )}
         </div>
       </SectionCard>
 
