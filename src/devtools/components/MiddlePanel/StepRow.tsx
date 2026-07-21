@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStore, Step } from '../../store';
 import { ActionType } from '../../utils/actionRecommender';
 import { copyZeuzStep, formatAsZeuzStep } from '../../utils/zeuzFormatter';
-import { buildSaveAttributeRows, buildSaveAttributeListRows } from '../../utils/zeuzStoreBuilder';
+import { buildSaveAttributeListRows } from '../../utils/zeuzStoreBuilder';
 
 interface StepRowProps {
   step: Step;
@@ -98,6 +98,7 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
   const selectStep = useStore((s) => s.selectStep);
   const removeStep = useStore((s) => s.removeStep);
   const updateStep = useStore((s) => s.updateStep);
+  const insertStepBefore = useStore((s) => s.insertStepBefore);
   const setHighlightXpath = useStore((s) => s.setHighlightXpath);
   const checkedStepIds = useStore((s) => s.checkedStepIds);
   const toggleCheckedStep = useStore((s) => s.toggleCheckedStep);
@@ -149,24 +150,82 @@ export const StepRow: React.FC<StepRowProps> = ({ step }) => {
     e.stopPropagation();
     const newAction = e.target.value as ActionType;
 
-    // For save actions: use the isolated Store Builder (does NOT affect other actions)
-    if (newAction === 'save-attribute' || newAction === 'save-attribute-list') {
-      const storeRows = newAction === 'save-attribute'
-        ? buildSaveAttributeRows(step.element as any)
-        : buildSaveAttributeListRows(step.element as any);
+    // ── Save Attribute (single value) ──────────────────────────────────────────
+    // Type conversion only: reuse the existing locator rows exactly as captured.
+    // Do NOT call buildSaveAttributeRows — that regenerates and produces a worse XPath.
+    // Just:
+    //   1. Keep all existing element/parent parameter rows
+    //   2. Remove any old action/optional rows
+    //   3. Add save parameter (variable name)
+    //   4. Add new selenium action row
+    // Also insert a Wait 5s step immediately before this step.
+    if (newAction === 'save-attribute') {
+      const existingRows = step.zeuzStep.rows;
 
-      // Create a zeuzStep-compatible object with the store builder's rows
+      // Strip any previous action rows, optional options, and save parameters
+      const locatorRows = existingRows.filter(r =>
+        r.type !== 'selenium action' &&
+        r.type !== 'optional option' &&
+        r.type !== 'save parameter'
+      );
+
+      // Auto-generate variable name from element text/id/tag
+      const text = step.element.text?.trim() || step.element.id || step.element.tag;
+      const varName = text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter((w: string) => w.length > 1)
+        .slice(0, 3)
+        .join('_')
+        .replace(/_{2,}/g, '_')
+        .substring(0, 35) + '_value';
+
+      const newRows = [
+        ...locatorRows,
+        { field: 'text', type: 'save parameter' as const, value: varName },
+        { field: 'save attribute', type: 'selenium action' as const, value: 'save attribute' },
+      ];
+
+      const newZeuzStep = {
+        ...step.zeuzStep,
+        title: `#${step.stepNumber} Save attribute of ${step.element.text?.trim().substring(0, 30) || step.element.tag}`,
+        rows: newRows,
+      };
+
+      updateStep(step.id, { action: newAction, zeuzStep: newZeuzStep as any });
+
+      // Insert Wait 5s step immediately before this step
+      const waitRows = [
+        ...locatorRows,
+        { field: 'wait', type: 'optional option' as const, value: '5' },
+        { field: 'wait', type: 'selenium action' as const, value: '5' },
+      ];
+      const waitZeuzStep = {
+        ...step.zeuzStep,
+        title: `Wait for element before save attribute`,
+        rows: waitRows,
+      };
+      insertStepBefore(step.id, step.element, 'wait-for-element', step.selector, waitZeuzStep as any);
+      return;
+    }
+
+    // ── Save Attribute Values in List ──────────────────────────────────────────
+    // This action needs collection-aware locator rebuilding (different structure).
+    if (newAction === 'save-attribute-list') {
+      const storeRows = buildSaveAttributeListRows(step.element as any);
       const storeZeuzStep = {
         ...step.zeuzStep,
-        title: `#${step.stepNumber} ${newAction === 'save-attribute' ? 'Save attribute of' : 'Save attribute values in list from'} ${step.element.text?.trim().substring(0, 30) || step.element.tag}`,
+        title: `#${step.stepNumber} Save attribute values in list from ${step.element.text?.trim().substring(0, 30) || step.element.tag}`,
         rows: storeRows as any,
       };
       updateStep(step.id, { action: newAction, zeuzStep: storeZeuzStep });
-    } else {
-      // All other actions: use existing formatter (unchanged)
-      const newZeuzStep = formatAsZeuzStep(step.element, newAction, step.stepNumber);
-      updateStep(step.id, { action: newAction, zeuzStep: newZeuzStep });
+      return;
     }
+
+    // ── All other actions: regenerate via formatter ────────────────────────────
+    const newZeuzStep = formatAsZeuzStep(step.element, newAction, step.stepNumber);
+    updateStep(step.id, { action: newAction, zeuzStep: newZeuzStep });
   };
 
   const handleMouseEnter = () => {

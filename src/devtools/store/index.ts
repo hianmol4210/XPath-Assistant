@@ -57,6 +57,7 @@ const createCaptureSlice: StateCreator<AppState, [], [], CaptureSlice> = (set) =
 export interface StepsSlice {
   steps: Step[];
   addStep: (element: CapturedElement, action: ActionType, selector: SelectorResult, zeuzStep: ZeuzStep) => void;
+  insertStepBefore: (beforeStepId: string, element: CapturedElement, action: ActionType, selector: SelectorResult, zeuzStep: ZeuzStep) => void;
   removeStep: (stepId: string) => void;
   updateStep: (stepId: string, updates: Partial<Step>) => void;
   reorderSteps: (fromIndex: number, toIndex: number) => void;
@@ -89,6 +90,30 @@ const createStepsSlice: StateCreator<AppState, [], [], StepsSlice> = (set) => ({
         groupId: null,
       };
       return { steps: [...state.steps, newStep] };
+    }),
+
+  insertStepBefore: (beforeStepId, element, action, selector, zeuzStep) =>
+    set((state) => {
+      const idx = state.steps.findIndex(s => s.id === beforeStepId);
+      if (idx === -1) return {};
+      const newStep: Step = {
+        id: generateStepId(),
+        stepNumber: idx + 1, // will be renumbered below
+        element,
+        action,
+        selector,
+        zeuzStep,
+        value: '',
+        delay: 0,
+        description: zeuzStep.title,
+        groupId: null,
+      };
+      const newSteps = [
+        ...state.steps.slice(0, idx),
+        newStep,
+        ...state.steps.slice(idx),
+      ].map((s, i) => ({ ...s, stepNumber: i + 1 }));
+      return { steps: newSteps };
     }),
 
   removeStep: (stepId) =>
